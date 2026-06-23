@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { Membership, useAuthStore } from '../store/useAuthStore';
 
 const ProfilePicker = ({ navigation }: any) => {
@@ -14,17 +15,34 @@ const ProfilePicker = ({ navigation }: any) => {
   const setActiveProfile = useAuthStore(state => state.setActiveProfile);
   const logout = useAuthStore(state => state.logout);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      // If leaving this screen and no active profile is selected, clear auth state
+      const currentState = useAuthStore.getState();
+      if (!currentState.activeMembership) {
+        currentState.logout();
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const handleSelectProfile = (profile: Membership) => {
     // 1. Establish the active selection in the global store configuration
     setActiveProfile(profile);
 
-    // 2. Clear route stack contextual branches to enter the core app layout workspace
-    navigation.navigate('DashboardHome');
+    // 2. Reset the stack to enter the core app layout workspace
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'DashboardHome' }],
+    });
   };
 
   const handleLogout = () => {
     logout();
-    navigation.navigate('GatewayScreen');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'GatewayScreen' }],
+    });
   };
 
   // Helper function to render elegant theme badges per user status level
@@ -52,8 +70,7 @@ const ProfilePicker = ({ navigation }: any) => {
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        className="p-6 justify-center"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
       >
         {/* Profile Context Header Layout */}
         <View className="mb-8 items-center">
@@ -71,9 +88,22 @@ const ProfilePicker = ({ navigation }: any) => {
           {user?.memberships?.map((item: Membership) => (
             <TouchableOpacity
               key={item.id}
-              activeOpacity={0.7}
-              onPress={() => handleSelectProfile(item)}
-              className="w-full bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex-row items-center justify-between"
+              activeOpacity={item.status === 'active' ? 0.7 : 1}
+              onPress={() => {
+                if (item.status !== 'active') {
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Approval Required',
+                    text2: 'This profile is pending approval by the admin.',
+                    position: 'bottom',
+                  });
+                  return;
+                }
+                handleSelectProfile(item);
+              }}
+              className={`w-full bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex-row items-center justify-between ${
+                item.status !== 'active' ? 'opacity-50' : ''
+              }`}
               style={{
                 shadowColor: '#0f172a',
                 shadowOffset: { width: 0, height: 4 },

@@ -12,7 +12,7 @@ export interface Society {
 
 export interface Membership {
   id: number;
-  role: 'admin' | 'owner' | 'tenant' | 'guard';
+  role: 'admin' | 'treasurer' | 'committee' | 'wing_admin' | 'owner' | 'tenant' | 'guard';
   designation: string;
   status: 'pending' | 'active' | 'exited';
   flatNumber: string | null;

@@ -7,6 +7,7 @@ import {
   onNotificationOpenedApp,
   onTokenRefresh,
   requestPermission,
+  hasPermission,
 } from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -22,8 +23,21 @@ class NotificationService {
       const user = useAuthStore.getState().user;
       if (!user) return;
 
-      // Request explicit notification permission via Modular SDK
-      const authStatus = await requestPermission(this.messagingInstance);
+      // Check current authorization status first
+      const currentStatus = await hasPermission(this.messagingInstance);
+
+      if (currentStatus === AuthorizationStatus.DENIED) {
+        console.log('⚠️ Notification permission is already denied');
+        return;
+      }
+
+      let authStatus: number = currentStatus;
+
+      // Only request if permission has not been determined yet
+      if (currentStatus === AuthorizationStatus.NOT_DETERMINED) {
+        authStatus = await requestPermission(this.messagingInstance);
+      }
+
       const enabled =
         authStatus === AuthorizationStatus.AUTHORIZED ||
         authStatus === AuthorizationStatus.PROVISIONAL;

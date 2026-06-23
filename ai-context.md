@@ -410,6 +410,7 @@ societly-app/
     │   ├── types/
     │   │   └── api.types.ts
     │   └── utils/
+    │       ├── permissions.ts
     │       └── theme.ts
     └── App.tsx
 ```

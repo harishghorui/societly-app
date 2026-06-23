@@ -4,7 +4,7 @@ import { ApiResponse } from '../types/api.types';
 import { useAuthStore } from '../store/useAuthStore';
 
 // Change this when your laptop's IP changes
-const LOCAL_IP = '192.168.0.102';
+const LOCAL_IP = '192.168.0.112';
 
 const BASE_URL = __DEV__
   ? Platform.OS === 'android'

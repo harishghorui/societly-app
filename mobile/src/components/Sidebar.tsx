@@ -49,7 +49,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleSignOut = () => {
     onClose();
     logout();
-    navigation.navigate('GatewayScreen');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'GatewayScreen' }],
+    });
   };
 
   return (
@@ -207,7 +210,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity className="flex-row items-center space-x-3 p-3 active:bg-slate-50 rounded-xl mb-1">
+                  <TouchableOpacity
+                    onPress={() => handleNavigation('ApprovalManagementScreen')}
+                    className="flex-row items-center space-x-3 p-3 active:bg-slate-50 rounded-xl mb-1"
+                  >
                     <CheckSquare size={20} color="#64748b" />
                     <Text className="text-slate-700 font-bold text-sm ml-3">
                       Review Approvals

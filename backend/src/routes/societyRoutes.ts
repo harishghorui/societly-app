@@ -10,6 +10,7 @@ import {
 } from '../controllers/societyController.js';
 import Society from '../models/Society.js';
 import { authenticateJWT, requireRole } from '../middlewares/authMiddleware.js';
+import { sendSuccess, sendError } from '../utils/responseWrapper.js';
 
 const router = Router();
 
@@ -26,9 +27,9 @@ router.get('/search', async (req, res) => {
         ]
       }
     });
-    res.json(societies);
+    return sendSuccess(res, 200, "Societies searched successfully", societies);
   } catch (error) {
-    res.status(500).json({ message: "Search failed" });
+    return sendError(res, 500, "Search failed", "SEARCH_FAILED", error);
   }
 });
 
@@ -41,12 +42,12 @@ router.get('/verify/:code', async (req, res) => {
     });
 
     if (!society) {
-      return res.status(404).json({ message: "Society not found. Check the code again." });
+      return sendError(res, 404, "Society not found. Check the code again.", "SOCIETY_NOT_FOUND");
     }
 
-    res.json(society);
+    return sendSuccess(res, 200, "Society verified successfully", society);
   } catch (error) {
-    res.status(500).json({ message: "Error verifying code" });
+    return sendError(res, 500, "Error verifying code", "VERIFY_CODE_ERROR", error);
   }
 });
 

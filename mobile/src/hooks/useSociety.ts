@@ -30,6 +30,7 @@ export const useSociety = () => {
     name: string;
     address: string;
     govtRegistrationNo: string;
+    structureType: 'single_building' | 'multi_wing';
   }) => {
     if (!societyId) return;
     setSaving(true);

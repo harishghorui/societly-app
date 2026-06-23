@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import apiClient from '../api/client';
+import { ApiResponse } from '../types/api.types';
 
 const GatewayScreen = ({ navigation }: any) => {
   const [code, setCode] = useState('');
@@ -19,25 +20,30 @@ const GatewayScreen = ({ navigation }: any) => {
 
     setLoading(true);
     try {
-      const response = await apiClient.get(`/societies/verify/${code.trim()}`);
+      const response = await apiClient.get<any, ApiResponse>(`/societies/verify/${code.trim()}`);
 
-      Toast.show({
-        type: 'success',
-        text1: 'Society Found!',
-        text2: `Successfully matched with ${response.data.name}`,
-        position: 'bottom',
-      });
+      if (response.success && response.data) {
+        Toast.show({
+          type: 'success',
+          text1: 'Society Found!',
+          text2: `Successfully matched with ${response.data.name}`,
+          position: 'bottom',
+        });
 
-      navigation.navigate('AuthScreen', {
-        mode: 'join',
-        society: response.data,
-      });
-    } catch (error: any) {
+        navigation.navigate('AuthScreen', {
+          mode: 'join',
+          society: response.data,
+        });
+      } else {
+        throw response;
+      }
+    } catch (err) {
+      const apiError = err as ApiResponse;
       Toast.show({
         type: 'error',
         text1: 'Society Not Found',
         text2:
-          error.response?.data?.message ||
+          apiError.message ||
           'Invalid registration code. Please try again.',
         position: 'bottom',
       });
@@ -67,7 +73,8 @@ const GatewayScreen = ({ navigation }: any) => {
         <TextInput
           className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base rounded-t-xl mb-4 focus:border-[#006d3b]"
           placeholder="Enter Registration Code (e.g., NMC-1234)"
-          placeholderTextColor="#5f6d7e"
+          placeholderTextColor="#94a3b8"
+          keyboardAppearance="light"
           value={code}
           onChangeText={setCode}
           autoCapitalize="characters"

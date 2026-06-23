@@ -11,9 +11,11 @@ import Toast from 'react-native-toast-message';
 // Store & Service Imports
 import { notificationService } from './src/services/notificationService';
 import { useAuthStore } from './src/store/useAuthStore';
+import { requestNotificationPermission } from './src/utils/permissions';
 
 // Screens
 import { AdminVerificationDesk } from './src/screens/AdminVerificationDesk';
+import { ApprovalManagementScreen } from './src/screens/ApprovalManagementScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import { BillingConfigScreen } from './src/screens/BillingConfigScreen';
 import { ComplaintDetailScreen } from './src/screens/ComplaintDetailScreen';
@@ -55,6 +57,19 @@ function AppContent() {
     if (token) {
       notificationService.registerDevice();
     }
+
+    const checkPermissions = async () => {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        Toast.show({
+          type: 'info',
+          text1: 'Notifications Disabled',
+          text2: 'Please enable notifications to receive invoice and notice updates.',
+        });
+      }
+    };
+
+    checkPermissions();
   }, [token, hydrated]);
 
   const getInitialRoute = (): string => {
@@ -105,7 +120,11 @@ function AppContent() {
         >
           <Stack.Screen name="GatewayScreen" component={GatewayScreen} />
           <Stack.Screen name="AuthScreen" component={AuthScreen} />
-          <Stack.Screen name="ProfilePicker" component={ProfilePicker} />
+          <Stack.Screen 
+            name="ProfilePicker" 
+            component={ProfilePicker} 
+            options={{ presentation: 'modal' }} 
+          />
           <Stack.Screen name="DashboardHome" component={DashboardHome} />
           <Stack.Screen
             name="NotificationScreen"
@@ -136,6 +155,10 @@ function AppContent() {
           <Stack.Screen
             name="SocietyProfileScreen"
             component={SocietyProfileScreen}
+          />
+          <Stack.Screen
+            name="ApprovalManagementScreen"
+            component={ApprovalManagementScreen}
           />
 
         </Stack.Navigator>

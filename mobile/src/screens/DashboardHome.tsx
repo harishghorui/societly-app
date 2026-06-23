@@ -7,13 +7,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  BackHandler,
+  Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import apiClient from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { globalStyles } from '../utils/theme';
 import { ApiResponse } from '../types/api.types';
+
+import CustomAlert from '../components/CustomAlert';
 
 // Modular Component Imports
 import { ExpenseModal } from '../components/ExpenseModal';
@@ -38,6 +43,39 @@ const DashboardHome = ({ navigation }: any) => {
     ? `Unit ${activeMembership.flatNumber}`
     : 'Management Desk';
 
+  // Double-tap back button to exit app on Android
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+
+      let lastBackPressed = 0;
+      const onBackPress = () => {
+        const timeNow = Date.now();
+        if (lastBackPressed && timeNow - lastBackPressed < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackPressed = timeNow;
+        Toast.show({
+          type: 'info',
+          text1: 'Press back again to exit',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress,
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [])
+  );
+
   // Component UI Visibility States
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [noticeModalOpen, setNoticeModalOpen] = useState(false);
@@ -52,6 +90,21 @@ const DashboardHome = ({ navigation }: any) => {
   const [fetchingInvoice, setFetchingInvoice] = useState(false);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [fetchingExpenses, setFetchingExpenses] = useState(false);
+
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
   // Encapsulated Finance Logic Architecture
   const { summary, fetchFinanceSummary } = useFinance();
@@ -105,7 +158,7 @@ const DashboardHome = ({ navigation }: any) => {
       if (role === 'admin') {
         setFetchingApprovals(true);
         const approvalRes = await apiClient.get(
-          `/societies/approvals?societyId=${societyId}`,
+          `/societies/approvals?societyId=${societyId}&status=pending`,
         );
         if (approvalRes && approvalRes.data) {
           setPendingApprovals(approvalRes.data);
@@ -140,23 +193,49 @@ const DashboardHome = ({ navigation }: any) => {
     }
   }, [societyId, role, membershipId]);
 
-  const handleApprovalAction = async (
+  const executeApprovalAction = async (
     targetId: number,
     targetStatus: 'active' | 'exited',
   ) => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
     try {
       const res = await apiClient.put<any, any>(`/societies/approvals/${targetId}`, {
         status: targetStatus,
+        societyId,
       });
-      Toast.show({
+      setAlertConfig({
+        visible: true,
+        title: 'Action Completed',
+        message: res.message || `Member successfully ${targetStatus === 'active' ? 'approved' : 'denied'}.`,
         type: 'success',
-        text1: res.data?.message || res.message || 'Action Successful',
       });
       setPendingApprovals(prev => prev.filter(item => item.id !== targetId));
     } catch (error) {
       const apiError = error as ApiResponse;
-      Toast.show({ type: 'error', text1: apiError.message || 'Action Failed' });
+      setAlertConfig({
+        visible: true,
+        title: 'Action Failed',
+        message: apiError.message || 'Failed to update member status.',
+        type: 'error',
+      });
     }
+  };
+
+  const handleApprovalAction = (
+    targetId: number,
+    targetStatus: 'active' | 'exited',
+    memberName: string,
+  ) => {
+    const actionLabel = targetStatus === 'active' ? 'approve' : 'deny';
+    setAlertConfig({
+      visible: true,
+      title: `${targetStatus === 'active' ? 'Approve' : 'Deny'} Member`,
+      message: `Are you sure you want to ${actionLabel} ${memberName}?`,
+      type: 'warning',
+      confirmText: `Yes, ${targetStatus === 'active' ? 'Approve' : 'Deny'}`,
+      cancelText: 'Cancel',
+      onConfirm: () => executeApprovalAction(targetId, targetStatus),
+    });
   };
 
   const handleActionGridPress = (moduleLabel: string) => {
@@ -353,7 +432,7 @@ const DashboardHome = ({ navigation }: any) => {
                         <View className="flex-row justify-between">
                           <TouchableOpacity
                             onPress={() =>
-                              handleApprovalAction(item.id, 'exited')
+                              handleApprovalAction(item.id, 'exited', item.user?.name || 'this applicant')
                             }
                             className="flex-1 bg-slate-100 py-1.5 rounded-lg items-center mr-1"
                           >
@@ -363,7 +442,7 @@ const DashboardHome = ({ navigation }: any) => {
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() =>
-                              handleApprovalAction(item.id, 'active')
+                              handleApprovalAction(item.id, 'active', item.user?.name || 'this applicant')
                             }
                             className="flex-1 bg-[#006d3b] py-1.5 rounded-lg items-center ml-1"
                           >
@@ -569,6 +648,17 @@ const DashboardHome = ({ navigation }: any) => {
           fetchFinanceSummary();
           fetchExpenseHistory();
         }}
+      />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        onConfirm={alertConfig.onConfirm}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
     </SafeAreaView>
   );

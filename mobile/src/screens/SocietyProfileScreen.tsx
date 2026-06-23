@@ -300,7 +300,7 @@ export const SocietyProfileScreen = ({ navigation }: any) => {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 16, pb: 40 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         >
           {/* Section 1: Society Info Card */}
           <View className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm mb-4 space-y-4">

@@ -7,39 +7,45 @@ import Flat from "../models/Flat.js";
 import sequelize from "../config/db.js";
 import { sendError, sendSuccess } from "../utils/responseWrapper.js";
 
-// 📋 Fetch all pending memberships for a specific society
+// 📋 Fetch all memberships for a specific society, optionally filtered by status
 export const getPendingApprovals = async (req: Request, res: Response) => {
-  const { societyId } = req.query;
+  const { societyId, status } = req.query;
 
   if (!societyId) {
     return sendError(res, 400, "Society ID is required", "MISSING_SOCIETY_ID");
   }
 
   try {
-    const pending = await Membership.findAll({
-      where: {
-        societyId: Number(societyId),
-        status: "pending",
-      },
+    const whereClause: any = {
+      societyId: Number(societyId),
+    };
+
+    if (status) {
+      whereClause.status = status;
+    }
+
+    const memberships = await Membership.findAll({
+      where: whereClause,
       include: [
         {
           model: User,
           attributes: ["id", "name", "phone"], // Only pull what the UI needs
         },
       ],
+      order: [["updatedAt", "DESC"]],
     });
 
     return sendSuccess(
       res,
       200,
-      "Pending approvals fetched successfully",
-      pending,
+      "Memberships fetched successfully",
+      memberships,
     );
   } catch (error) {
     return sendError(
       res,
       500,
-      "Failed to fetch pending approvals",
+      "Failed to fetch memberships",
       "FETCH_APPROVALS_ERROR",
       error,
     );
