@@ -331,6 +331,7 @@ societly-app/
 │   │   │   ├── invoiceController.ts
 │   │   │   ├── noticeController.ts
 │   │   │   ├── notificationController.ts
+│   │   │   ├── onboardingController.ts
 │   │   │   └── societyController.ts
 │   │   ├── models/
 │   │   │   ├── index.ts
@@ -356,6 +357,7 @@ societly-app/
 │   │   │   ├── invoiceRoutes.ts
 │   │   │   ├── noticeRoutes.ts
 │   │   │   ├── notificationRoutes.ts
+│   │   │   ├── onboardingRoutes.ts
 │   │   │   └── societyRoutes.ts
 │   │   ├── services/
 │   │   │   ├── billingEngineService.ts
@@ -398,6 +400,7 @@ societly-app/
     │   │   ├── ComplaintScreen.tsx
     │   │   ├── DashboardHome.tsx
     │   │   ├── DirectoryScreen.tsx
+    │   │   ├── FinancialOnboardingWizard.tsx
     │   │   ├── GatewayScreen.tsx
     │   │   ├── NotificationScreen.tsx
     │   │   ├── ProfilePicker.tsx

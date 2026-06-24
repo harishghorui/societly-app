@@ -32,14 +32,15 @@ export const getSocietyDirectory = async (req: Request, res: Response) => {
     }
 
     const isRequesterAdmin = requester.role === "admin";
+    const isRequesterStaff = requester.role === "admin" || requester.role === "treasurer";
 
     // 2. Query all active neighbors inside the same housing society building
     const directoryEntries = await Membership.findAll({
       where: {
         societyId: Number(societyId),
-        status: "active",
+        status: ["active", "pending_activation"],
       },
-      attributes: ["id", "flatNumber", "role", "designation"],
+      attributes: ["id", "flatNumber", "role", "designation", "advanceWalletBalance"],
       include: [
         {
           model: User,
@@ -66,6 +67,11 @@ export const getSocietyDirectory = async (req: Request, res: Response) => {
 
         // Remove the inner flag parameter to keep the payload lightweight
         delete neighborUser.hidePhoneNumber;
+      }
+
+      // Only expose wallet balances to staff members (admin / treasurer)
+      if (!isRequesterStaff) {
+        delete neighbor.advanceWalletBalance;
       }
 
       return neighbor;

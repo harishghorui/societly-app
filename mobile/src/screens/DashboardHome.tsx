@@ -1,4 +1,4 @@
-import { PlusCircle, ShieldCheck } from 'lucide-react-native';
+import { PlusCircle, ShieldCheck, Sliders, ChevronRight } from 'lucide-react-native';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -286,6 +286,30 @@ const DashboardHome = ({ navigation }: any) => {
             </Text>
           </View>
         </View>
+
+        {/* Onboarding Intercept Banner */}
+        {activeMembership?.society?.onboardingStep !== 'COMPLETED' && (
+          <View className="bg-amber-50 border border-amber-200 rounded-3xl p-5 mb-6 shadow-sm space-y-3">
+            <View className="flex-row items-center space-x-2">
+              <View className="bg-amber-100 p-2 rounded-full">
+                <Sliders size={18} color="#b45309" />
+              </View>
+              <Text className="text-amber-900 font-black text-sm">Financial Onboarding Incomplete</Text>
+            </View>
+            <Text className="text-amber-800 text-xs leading-relaxed">
+              Financial Onboarding Incomplete. Please complete the setup wizard to unlock billing features.
+            </Text>
+            {(role === 'admin' || role === 'secretary') && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('FinancialOnboardingWizard')}
+                className="bg-[#006d3b] rounded-xl py-2.5 items-center justify-center active:bg-[#00522c] flex-row space-x-1.5 self-start px-4 shadow-sm"
+              >
+                <Text className="text-white font-black text-xs">Complete Setup</Text>
+                <ChevronRight size={14} color="#ffffff" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Polymorphic Workspace Routing Panels */}
         {role === 'admin' || role === 'treasurer' ? (

@@ -1,4 +1,4 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from "sequelize";
 import sequelize from "../config/db.js";
 
 export enum UserRole {
@@ -11,19 +11,19 @@ export enum UserRole {
   GUARD = "guard",
 }
 
-class Membership extends Model {
-  declare id: number;
-  declare role: UserRole;
-  declare designation: string;
-  declare status: string;
-  declare flatNumber: string | null;
-  declare advanceWalletBalance: number;
+class Membership extends Model<InferAttributes<Membership>, InferCreationAttributes<Membership>> {
+  declare id: CreationOptional<number>;
+  declare role: CreationOptional<UserRole>;
+  declare designation: CreationOptional<string>;
+  declare status: CreationOptional<"pending_activation" | "active" | "pending" | "exited">;
+  declare flatNumber: CreationOptional<string | null>;
+  declare advanceWalletBalance: CreationOptional<number>;
 
   // 1. Declare the Foreign Key Type Definitions
   declare userId: number;
   declare societyId: number;
-  declare wingId: number | null;
-  declare flatId: number | null;
+  declare wingId: CreationOptional<number | null>;
+  declare flatId: CreationOptional<number | null>;
 }
 
 Membership.init(
@@ -35,8 +35,8 @@ Membership.init(
     },
     designation: { type: DataTypes.STRING, defaultValue: "Resident" },
     status: {
-      type: DataTypes.ENUM("pending", "active", "exited"),
-      defaultValue: "pending",
+      type: DataTypes.ENUM("pending_activation", "active", "pending", "exited"),
+      defaultValue: "active",
     },
     flatNumber: { type: DataTypes.STRING, allowNull: true },
     

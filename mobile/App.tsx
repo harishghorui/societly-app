@@ -28,6 +28,7 @@ import { NotificationScreen } from './src/screens/NotificationScreen';
 import ProfilePicker from './src/screens/ProfilePicker';
 import { ResidentLedgerScreen } from './src/screens/ResidentLedgerScreen';
 import { SocietyProfileScreen } from './src/screens/SocietyProfileScreen';
+import { FinancialOnboardingWizard } from './src/screens/FinancialOnboardingWizard';
 
 const Stack = createNativeStackNavigator();
 
@@ -159,6 +160,10 @@ function AppContent() {
           <Stack.Screen
             name="ApprovalManagementScreen"
             component={ApprovalManagementScreen}
+          />
+          <Stack.Screen
+            name="FinancialOnboardingWizard"
+            component={FinancialOnboardingWizard}
           />
 
         </Stack.Navigator>

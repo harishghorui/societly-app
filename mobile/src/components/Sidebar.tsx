@@ -145,11 +145,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
 
               {/* Polymorphic Admin Management Section */}
-              {role === 'admin' && (
+              {(role === 'admin' || role === 'secretary') && (
                 <View className="pt-4 mt-3 border-t border-slate-100 space-y-1">
                   <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider pl-3 mb-1">
                     Management Desk
                   </Text>
+
+                  {activeMembership?.society?.onboardingStep !== 'COMPLETED' && (
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('FinancialOnboardingWizard')}
+                      className="flex-row items-center space-x-3 p-3 bg-amber-50/70 border border-amber-100 rounded-xl mb-1"
+                    >
+                      <Sliders size={20} color="#b45309" />
+                      <Text className="text-amber-800 font-bold text-sm ml-3">
+                        Setup Wizard
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
                     onPress={() => handleNavigation('BillingConfigScreen')}

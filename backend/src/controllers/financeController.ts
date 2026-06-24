@@ -327,7 +327,13 @@ export const getInvoices = async (req: Request, res: Response) => {
       order: [["createdAt", "DESC"]],
     });
 
-    return sendSuccess(res, 200, "Invoices loaded successfully", invoices);
+    const membership = await Membership.findByPk(Number(membershipId));
+    const advanceWalletBalance = membership ? Number(membership.advanceWalletBalance) : 0;
+
+    return sendSuccess(res, 200, "Invoices loaded successfully", {
+      invoices,
+      advanceWalletBalance,
+    });
   } catch (error) {
     return sendError(
       res,
@@ -516,6 +522,97 @@ export const getExpensesHistory = async (req: Request, res: Response) => {
       "Failed to load expense history",
       "FETCH_ERROR",
       error,
+    );
+  }
+};
+
+// 💳 10. Admin Action: Load wallet top-up for a resident membership
+export const topupWallet = async (req: Request, res: Response) => {
+  const { targetMembershipId, amount, paymentMethod, societyId } = req.body;
+
+  if (!targetMembershipId || !amount || !paymentMethod || !societyId) {
+    return sendError(
+      res,
+      400,
+      "Missing top-up parameters.",
+      "MISSING_PARAMETERS",
+    );
+  }
+
+  const topupAmount = Number(amount);
+  if (isNaN(topupAmount) || topupAmount <= 0) {
+    return sendError(
+      res,
+      400,
+      "Invalid amount. Must be a positive number.",
+      "INVALID_AMOUNT",
+    );
+  }
+
+  if (!["cash", "cheque", "online"].includes(paymentMethod)) {
+    return sendError(
+      res,
+      400,
+      "Invalid payment method. Use 'cash', 'cheque', or 'online'.",
+      "INVALID_PAYMENT_METHOD",
+    );
+  }
+
+  const t = await sequelize.transaction();
+  try {
+    const targetMembership = await Membership.findOne({
+      where: { id: Number(targetMembershipId), societyId: Number(societyId) },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!targetMembership) {
+      await t.rollback();
+      return sendError(
+        res,
+        404,
+        "Resident membership not found in this society.",
+        "RESIDENT_NOT_FOUND",
+      );
+    }
+
+    targetMembership.advanceWalletBalance = 
+      Number(targetMembership.advanceWalletBalance) + topupAmount;
+    await targetMembership.save({ transaction: t });
+
+    const [balance] = await SocietyBalance.findOrCreate({
+      where: { societyId: Number(societyId) },
+      defaults: { cashBalance: 0, bankBalance: 0 },
+      transaction: t,
+    });
+
+    if (paymentMethod === "cash") {
+      balance.cashBalance = Number(balance.cashBalance) + topupAmount;
+    } else {
+      balance.bankBalance = Number(balance.bankBalance) + topupAmount;
+    }
+    await balance.save({ transaction: t });
+
+    await t.commit();
+
+    return sendSuccess(
+      res,
+      200,
+      "Wallet topped up successfully.",
+      {
+        advanceWalletBalance: targetMembership.advanceWalletBalance,
+        cashBalance: balance.cashBalance,
+        bankBalance: balance.bankBalance,
+      }
+    );
+  } catch (error: any) {
+    await t.rollback();
+    return sendError(
+      res,
+      500,
+      "Failed to process wallet top-up.",
+      "TRANSACTION_FAILURE",
+      error.message || error,
     );
   }
 };

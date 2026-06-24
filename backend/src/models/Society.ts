@@ -8,6 +8,7 @@ class Society extends Model<InferAttributes<Society>, InferCreationAttributes<So
   declare registrationCode: string;
   declare govtRegistrationNo: string;
   declare structureType: CreationOptional<"single_building" | "multi_wing">;
+  declare onboardingStep: CreationOptional<"PROFILE" | "LAYOUT" | "FINANCIAL" | "COMPLETED">;
 }
 
 Society.init(
@@ -28,6 +29,11 @@ Society.init(
     structureType: {
       type: DataTypes.ENUM("single_building", "multi_wing"),
       defaultValue: "multi_wing",
+      allowNull: false,
+    },
+    onboardingStep: {
+      type: DataTypes.ENUM("PROFILE", "LAYOUT", "FINANCIAL", "COMPLETED"),
+      defaultValue: "PROFILE",
       allowNull: false,
     },
   },

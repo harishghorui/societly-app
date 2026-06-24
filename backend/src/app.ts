@@ -12,6 +12,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
 import noticeRoutes from "./routes/noticeRoutes.js";
+import onboardingRoutes from "./routes/onboardingRoutes.js";
 import { initializeAutomatedBillingScheduler, recoverBillingCycles } from "./workers/billingScheduler.js";
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use("/api/society/directory", directoryRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/notices", noticeRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 
 const PORT = process.env.PORT || 5000;
 

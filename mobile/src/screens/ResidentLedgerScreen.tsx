@@ -9,6 +9,7 @@ import {
   ReceiptText,
   X,
   Paperclip,
+  Wallet,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -32,6 +33,7 @@ import { ApiResponse } from '../types/api.types';
 export const ResidentLedgerScreen = ({ navigation }: any) => {
   const activeMembership = useAuthStore(state => state.activeMembership);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [advanceWalletBalance, setAdvanceWalletBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -151,7 +153,13 @@ export const ResidentLedgerScreen = ({ navigation }: any) => {
           `/finance/invoices?membershipId=${activeMembership?.id}`,
         );
         if (res.success && res.data) {
-          setInvoices(res.data);
+          if (Array.isArray(res.data)) {
+            setInvoices(res.data);
+            setAdvanceWalletBalance(0);
+          } else {
+            setInvoices(res.data.invoices || []);
+            setAdvanceWalletBalance(res.data.advanceWalletBalance || 0);
+          }
         }
       } catch (err) {
         console.error('Failed syncing personal invoice list:', err);
@@ -234,6 +242,29 @@ export const ResidentLedgerScreen = ({ navigation }: any) => {
         data={invoices}
         keyExtractor={item => String(item.id)}
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        ListHeaderComponent={
+          <View className="bg-emerald-700 rounded-2xl p-5 mb-4 shadow-sm">
+            <View className="flex-row justify-between items-center">
+              <View className="space-y-1">
+                <Text className="text-emerald-100 text-[11px] font-black uppercase tracking-wider">
+                  Advance Wallet Balance
+                </Text>
+                <View className="flex-row items-center">
+                  <IndianRupee size={22} color="#ffffff" />
+                  <Text className="text-2xl font-black text-white ml-0.5">
+                    {Number(advanceWalletBalance).toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+              <View className="bg-white/10 p-3 rounded-full">
+                <Wallet size={24} color="#ffffff" />
+              </View>
+            </View>
+            <Text className="text-emerald-100/80 text-[11px] font-bold mt-3">
+              This balance automatically clears monthly invoices on generation.
+            </Text>
+          </View>
+        }
         ListEmptyComponent={
           <View className="flex-1 py-12 justify-center items-center space-y-2">
             <ReceiptText size={40} color="#94a3b8" />

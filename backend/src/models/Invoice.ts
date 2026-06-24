@@ -1,20 +1,21 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from "sequelize";
 import sequelize from "../config/db.js";
 
-class Invoice extends Model {
-  declare id: number;
+class Invoice extends Model<InferAttributes<Invoice>, InferCreationAttributes<Invoice>> {
+  declare id: CreationOptional<number>;
   declare membershipId: number;
   declare societyId: number;
   declare amount: number;
   declare billingCycle: string;
   declare dueDate: Date;
-  declare status: "pending" | "paid" | "overdue" | "pending_approval";
-  declare paymentMethod: "cash" | "cheque" | "online" | null;
-  declare paymentGatewayTxnId: string | null;
-  declare paidAt: Date | null;
-  declare paymentRef: string | null;
-  declare remarks: string | null;
-  declare proofUrl: string | null;
+  declare status: CreationOptional<"pending" | "paid" | "overdue" | "pending_approval">;
+  declare paymentMethod: CreationOptional<"cash" | "cheque" | "online" | null>;
+  declare paymentGatewayTxnId: CreationOptional<string | null>;
+  declare paidAt: CreationOptional<Date | null>;
+  declare paymentRef: CreationOptional<string | null>;
+  declare remarks: CreationOptional<string | null>;
+  declare proofUrl: CreationOptional<string | null>;
+  declare isHistorical: CreationOptional<boolean>;
 }
 
 Invoice.init(
@@ -49,6 +50,11 @@ Invoice.init(
     paymentRef: { type: DataTypes.STRING, allowNull: true },
     remarks: { type: DataTypes.STRING, allowNull: true },
     proofUrl: { type: DataTypes.STRING, allowNull: true },
+    isHistorical: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
   },
   {
     sequelize,

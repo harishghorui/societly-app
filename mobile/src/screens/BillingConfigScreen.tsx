@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Sliders, Calendar, Percent, IndianRupee, Plus, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Sliders, Calendar, Percent, IndianRupee, Plus, Trash2, ChevronRight } from 'lucide-react-native';
 import { useBillingConfig } from '../hooks/useBillingConfig';
+import { useAuthStore } from '../store/useAuthStore';
 import CustomAlert from '../components/CustomAlert';
 
 const CALC_TYPES = [
@@ -25,6 +26,44 @@ interface BreakdownItem {
 
 export const BillingConfigScreen = ({ navigation }: any) => {
   const { config, loading, saving, fetchBillingConfig, saveBillingConfig } = useBillingConfig();
+
+  const activeMembership = useAuthStore(state => state.activeMembership);
+  const onboardingStep = activeMembership?.society?.onboardingStep;
+
+  if (onboardingStep !== 'COMPLETED') {
+    return (
+      <SafeAreaView className="flex-1 bg-[#f7f9fb]">
+        {/* Navbar Upper Header */}
+        <View className="h-16 w-full bg-white px-5 flex-row items-center space-x-3 border-b border-slate-100">
+          <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 -ml-2 rounded-full active:bg-slate-50">
+            <ArrowLeft size={22} color="#191c1e" />
+          </TouchableOpacity>
+          <Text className="text-xl font-black text-slate-900">Billing Controls</Text>
+        </View>
+
+        <View className="flex-1 justify-center items-center p-6 space-y-6">
+          <View className="bg-amber-50 p-6 rounded-full border border-amber-100 shadow-sm">
+            <Sliders size={48} color="#b45309" />
+          </View>
+          <View className="space-y-2 items-center">
+            <Text className="text-slate-950 text-lg font-black text-center">Financial Onboarding Incomplete</Text>
+            <Text className="text-slate-500 text-sm text-center leading-relaxed max-w-xs">
+              Financial Onboarding Incomplete. Please complete the setup wizard to unlock billing features.
+            </Text>
+          </View>
+          {(activeMembership?.role === 'admin' || activeMembership?.role === 'secretary') && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('FinancialOnboardingWizard')}
+              className="bg-[#006d3b] px-6 py-3.5 rounded-xl active:bg-[#00522c] shadow-sm flex-row items-center space-x-2"
+            >
+              <Text className="text-white font-black text-sm">Open Setup Wizard</Text>
+              <ChevronRight size={16} color="#ffffff" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const [calcType, setCalcType] = useState('flat_rate');
   const [baseAmount, setBaseAmount] = useState('');

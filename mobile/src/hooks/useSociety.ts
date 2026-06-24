@@ -41,15 +41,13 @@ export const useSociety = () => {
       );
       if (res.success && res.data) {
         setSociety(res.data);
-        // Update the active membership's society details in Zustand store
         const updateActiveMembership = useAuthStore.getState().setActiveProfile;
         if (activeMembership) {
           updateActiveMembership({
             ...activeMembership,
             society: {
               ...activeMembership.society,
-              name: res.data.name,
-              address: res.data.address,
+              ...res.data,
             },
           });
         }

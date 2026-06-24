@@ -9,7 +9,8 @@ import {
   getInvoices,
   getPendingInvoices,
   submitPaymentProof,
-  getExpensesHistory
+  getExpensesHistory,
+  topupWallet
 } from '../controllers/financeController.js';
 import { authenticateJWT, requireRole } from '../middlewares/authMiddleware.js';
 
@@ -28,4 +29,6 @@ router.put('/billing-config', requireRole(['admin', 'treasurer']), saveBillingCo
 router.get('/invoices', getInvoices);
 router.get('/invoices-pending', getPendingInvoices);
 router.post('/submit-proof', upload.single('proof'), submitPaymentProof);
+router.post('/wallet/topup', requireRole(['admin', 'treasurer']), topupWallet);
+
 export default router;

@@ -51,5 +51,6 @@ export const useDirectory = () => {
     roleFilter,
     setRoleFilter,
     fetchDirectory,
+    setRawDirectory,
   };
 };

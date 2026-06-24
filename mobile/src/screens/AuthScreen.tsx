@@ -12,6 +12,7 @@ import apiClient from '../api/client';
 import CustomAlert from '../components/CustomAlert';
 import { Membership, useAuthStore } from '../store/useAuthStore';
 import { ApiResponse } from '../types/api.types';
+import { Building, Layers } from 'lucide-react-native';
 
 const AuthScreen = ({ route, navigation }: any) => {
   const { mode, society } = route.params || { mode: 'login' };
@@ -52,6 +53,7 @@ const AuthScreen = ({ route, navigation }: any) => {
   const [societyName, setSocietyName] = useState('');
   const [address, setAddress] = useState('');
   const [govtRegNo, setGovtRegNo] = useState('');
+  const [structureType, setStructureType] = useState<'single_building' | 'multi_wing'>('single_building');
 
   const [loading, setLoading] = useState(false);
 
@@ -201,6 +203,7 @@ const AuthScreen = ({ route, navigation }: any) => {
           societyName,
           address,
           govtRegistrationNo: govtRegNo,
+          structureType,
         });
 
         showAlert(
@@ -422,6 +425,49 @@ const AuthScreen = ({ route, navigation }: any) => {
                 value={govtRegNo}
                 onChangeText={setGovtRegNo}
               />
+              
+              {/* Property Structure Type Selector */}
+              <View className="space-y-1.5 mb-6">
+                <Text className="text-slate-500 font-bold text-xs uppercase tracking-wide">
+                  Property Structure
+                </Text>
+                <View className="flex-row space-x-3 pt-1">
+                  <TouchableOpacity
+                    onPress={() => setStructureType('single_building')}
+                    className={`flex-1 p-4 rounded-2xl border items-center justify-center space-y-2 bg-slate-50 ${
+                      structureType === 'single_building'
+                        ? 'border-[#006d3b] bg-emerald-50/20'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    <Building size={20} color={structureType === 'single_building' ? '#006d3b' : '#64748b'} />
+                    <Text
+                      className={`text-xs font-black ${
+                        structureType === 'single_building' ? 'text-[#006d3b]' : 'text-slate-500'
+                      }`}
+                    >
+                      Single Building
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setStructureType('multi_wing')}
+                    className={`flex-1 p-4 rounded-2xl border items-center justify-center space-y-2 bg-slate-50 ${
+                      structureType === 'multi_wing'
+                        ? 'border-[#006d3b] bg-emerald-50/20'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    <Layers size={20} color={structureType === 'multi_wing' ? '#006d3b' : '#64748b'} />
+                    <Text
+                      className={`text-xs font-black ${
+                        structureType === 'multi_wing' ? 'text-[#006d3b]' : 'text-slate-500'
+                      }`}
+                    >
+                      Multi-Wing Complex
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           )}
 

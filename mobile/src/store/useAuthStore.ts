@@ -8,13 +8,15 @@ export interface Society {
   name: string;
   address: string;
   registrationCode: string;
+  onboardingStep?: 'PROFILE' | 'LAYOUT' | 'FINANCIAL' | 'COMPLETED';
+  structureType?: 'single_building' | 'multi_wing';
 }
 
 export interface Membership {
   id: number;
-  role: 'admin' | 'treasurer' | 'committee' | 'wing_admin' | 'owner' | 'tenant' | 'guard';
+  role: 'admin' | 'treasurer' | 'committee' | 'wing_admin' | 'owner' | 'tenant' | 'guard' | 'secretary';
   designation: string;
-  status: 'pending' | 'active' | 'exited';
+  status: 'pending' | 'active' | 'exited' | 'pending_activation';
   flatNumber: string | null;
   society: Society;
 }

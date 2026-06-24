@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import Membership from '../models/Membership.js';
+import Membership, { UserRole } from '../models/Membership.js';
 import Society from '../models/Society.js';
 import { generateSocietyCode } from '../utils/generateCode.js';
 import { sendSuccess, sendError } from '../utils/responseWrapper.js';
@@ -13,26 +13,47 @@ export const register = async (req: Request, res: Response) => {
   try {
     // 1. Check if user already exists
     let user = await User.findOne({ where: { phone } });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPin = await bcrypt.hash(pin, salt);
 
     if (!user) {
-      // 2. Hash the PIN for security
-      const salt = await bcrypt.genSalt(10);
-      const hashedPin = await bcrypt.hash(pin, salt);
-
-      // 3. Create the Identity
+      // 2. Create the Identity
       user = await User.create({ name, phone, pin: hashedPin });
+    } else {
+      // Gracefully claim the placeholder user record by updating details
+      user.name = name;
+      user.pin = hashedPin;
+      await user.save();
     }
 
-    // 4. Create the Membership (Initially 'pending' until Admin approves)
-    const membership = await Membership.create({
-      userId: user.id,
-      societyId,
-      flatNumber,
-      role: 'tenant', // Default role for new signups
-      status: 'pending'
+    // 3. Check if a pending_activation membership exists in this society for this user
+    let membership = await Membership.findOne({
+      where: {
+        userId: user.id,
+        societyId,
+        status: "pending_activation"
+      }
     });
 
-    return sendSuccess(res, 201, "Registration successful. Awaiting admin approval.", { userId: user.id });
+    if (membership) {
+      // Claim the existing pre-seeded membership and activate it
+      membership.status = "active";
+      if (flatNumber) {
+        membership.flatNumber = flatNumber;
+      }
+      await membership.save();
+      return sendSuccess(res, 201, "Registration and activation successful.", { userId: user.id });
+    } else {
+      // 4. Create the Membership (Initially 'pending' until Admin approves)
+      membership = await Membership.create({
+        userId: user.id,
+        societyId,
+        flatNumber,
+        role: UserRole.TENANT, // Default role for new signups
+        status: 'pending'
+      });
+      return sendSuccess(res, 201, "Registration successful. Awaiting admin approval.", { userId: user.id });
+    }
   } catch (error) {
     return sendError(res, 500, "Registration failed", "REGISTRATION_ERROR", error);
   }
@@ -77,7 +98,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const createSocietyAndAdmin = async (req: Request, res: Response) => {
-  const { name, phone, pin, societyName, address, govtRegistrationNo } = req.body;
+  const { name, phone, pin, societyName, address, govtRegistrationNo, structureType } = req.body;
 
   try {
     // 1. Check if Govt Reg No is unique (The "Double Registration" Lock)
@@ -101,14 +122,15 @@ export const createSocietyAndAdmin = async (req: Request, res: Response) => {
       name: societyName,
       address,
       govtRegistrationNo,
-      registrationCode
+      registrationCode,
+      structureType: structureType || 'single_building'
     });
 
     // 5. Create Admin Membership
     await Membership.create({
       userId: user.id,
       societyId: society.id,
-      role: 'admin',
+      role: UserRole.ADMIN,
       designation: 'Secretary',
       status: 'active'
     });
@@ -148,7 +170,7 @@ export const joinSociety = async (req: Request, res: Response) => {
       userId: user.id,
       societyId,
       flatNumber,
-      role: role || 'tenant', // Default to tenant if not specified
+      role: (role as UserRole) || UserRole.TENANT, // Default to tenant if not specified
       status: 'pending' // Must be approved by Admin
     });
 
