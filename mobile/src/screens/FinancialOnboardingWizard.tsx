@@ -23,7 +23,7 @@ import apiClient from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { ApiResponse } from '../types/api.types';
 import CustomAlert from '../components/CustomAlert';
-import { usePropertyLayout, WingLayoutInput, FlatLayoutInput } from '../hooks/usePropertyLayout';
+import { usePropertyLayout, WingLayoutInput } from '../hooks/usePropertyLayout';
 
 const FLAT_TYPES = ['1BHK', '2BHK', '3BHK', 'Shop', 'Office', 'Other'];
 

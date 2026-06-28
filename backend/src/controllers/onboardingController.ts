@@ -168,14 +168,13 @@ export const bulkSeedResidents = async (req: Request, res: Response) => {
       }
 
       // Look up or create a placeholder User by phone
-      const placeholderPin = "$2a$10$dummyhashplaceholderpinnotforproductionuse";
-      
       const [user] = await User.findOrCreate({
         where: { phone },
         defaults: {
           name,
           phone,
-          pin: placeholderPin,
+          pin: null,
+          status: 'invited',
           hidePhoneNumber: false,
         },
         transaction: t,

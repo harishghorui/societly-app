@@ -12,6 +12,7 @@ import Toast from 'react-native-toast-message';
 import { notificationService } from './src/services/notificationService';
 import { useAuthStore } from './src/store/useAuthStore';
 import { requestNotificationPermission } from './src/utils/permissions';
+import { navigationRef } from './src/utils/RootNavigation';
 
 // Screens
 import { AdminVerificationDesk } from './src/screens/AdminVerificationDesk';
@@ -23,7 +24,6 @@ import { ComplaintFormScreen } from './src/screens/ComplaintFormScreen';
 import { ComplaintScreen } from './src/screens/ComplaintScreen';
 import DashboardHome from './src/screens/DashboardHome';
 import { DirectoryScreen } from './src/screens/DirectoryScreen';
-import GatewayScreen from './src/screens/GatewayScreen';
 import { NotificationScreen } from './src/screens/NotificationScreen';
 import ProfilePicker from './src/screens/ProfilePicker';
 import { ResidentLedgerScreen } from './src/screens/ResidentLedgerScreen';
@@ -76,7 +76,7 @@ function AppContent() {
   const getInitialRoute = (): string => {
     if (token && activeMembership) return 'DashboardHome';
     if (token && !activeMembership) return 'ProfilePicker';
-    return 'GatewayScreen';
+    return 'AuthScreen';
   };
 
   if (!hydrated) {
@@ -114,12 +114,11 @@ function AppContent() {
         backgroundColor="#f7f9fb"
       />
 
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator
           initialRouteName={getInitialRoute()}
           screenOptions={{ headerShown: false }}
         >
-          <Stack.Screen name="GatewayScreen" component={GatewayScreen} />
           <Stack.Screen name="AuthScreen" component={AuthScreen} />
           <Stack.Screen 
             name="ProfilePicker" 

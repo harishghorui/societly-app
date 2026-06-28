@@ -41,7 +41,7 @@ const ProfilePicker = ({ navigation }: any) => {
     logout();
     navigation.reset({
       index: 0,
-      routes: [{ name: 'GatewayScreen' }],
+      routes: [{ name: 'AuthScreen' }],
     });
   };
 

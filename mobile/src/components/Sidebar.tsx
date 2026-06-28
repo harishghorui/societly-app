@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/useAuthStore';
+import Toast from 'react-native-toast-message';
 import {
   Building,
   CheckSquare,
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const user = useAuthStore((state) => state.user);
   const activeMembership = useAuthStore((state) => state.activeMembership);
   const logout = useAuthStore((state) => state.logout);
+  const setActiveProfile = useAuthStore((state) => state.setActiveProfile);
 
   const role = activeMembership?.role || 'tenant';
   const designation = activeMembership?.designation || 'Resident';
@@ -51,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout();
     navigation.reset({
       index: 0,
-      routes: [{ name: 'GatewayScreen' }],
+      routes: [{ name: 'AuthScreen' }],
     });
   };
 
@@ -84,6 +86,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </Text>
               </View>
             </View>
+
+            {/* Multi-Tenant Workspace Switcher */}
+            {user?.memberships && user.memberships.length > 1 && (
+              <View className="bg-slate-50 p-3 rounded-2xl border border-slate-100 mb-2">
+                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">
+                  Switch Workspace
+                </Text>
+                {user.memberships.map((m) => {
+                  const isCurrent = m.id === activeMembership?.id;
+                  if (isCurrent) return null;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      onPress={() => {
+                        setActiveProfile(m);
+                        onClose();
+                        Toast.show({
+                          type: 'success',
+                          text1: 'Workspace Switched',
+                          text2: `Connected to ${m.society?.name}`,
+                        });
+                        navigation.reset({
+                          index: 0,
+                          routes: [{ name: 'DashboardHome' }],
+                        });
+                      }}
+                      className="flex-row items-center p-2 rounded-xl active:bg-slate-100 mb-1"
+                    >
+                      <Building size={16} color="#64748b" />
+                      <View className="ml-2 flex-1">
+                        <Text className="text-slate-700 font-bold text-xs" numberOfLines={1}>
+                          {m.society?.name}
+                        </Text>
+                        <Text className="text-slate-400 text-[9px]">
+                          {m.role} • {m.flatNumber || 'Management'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Navigation Menu Links */}
             <ScrollView

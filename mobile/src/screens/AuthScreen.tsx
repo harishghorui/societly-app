@@ -13,6 +13,7 @@ import CustomAlert from '../components/CustomAlert';
 import { Membership, useAuthStore } from '../store/useAuthStore';
 import { ApiResponse } from '../types/api.types';
 import { Building, Layers } from 'lucide-react-native';
+import { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
 const AuthScreen = ({ route, navigation }: any) => {
   const { mode, society } = route.params || { mode: 'login' };
@@ -22,8 +23,20 @@ const AuthScreen = ({ route, navigation }: any) => {
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const hiddenPinRef = useRef<any>(null);
+  const newPinRef = useRef<any>(null);
+  const confirmPinRef = useRef<any>(null);
   const [cursorVisible, setCursorVisible] = useState(true);
   const [isPinInputFocused, setIsPinInputFocused] = useState(false);
+  const [isNewPinFocused, setIsNewPinFocused] = useState(false);
+  const [isConfirmPinFocused, setIsConfirmPinFocused] = useState(false);
+
+  // Multi-step Auth States
+  const [loginStep, setLoginStep] = useState<'phone' | 'otp' | 'activate' | 'pin' | 'reset_pin_input'>('phone');
+  const [isResettingPin, setIsResettingPin] = useState(false);
+  const [confirm, setConfirm] = useState<any>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [firebaseToken, setFirebaseToken] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,12 +50,22 @@ const AuthScreen = ({ route, navigation }: any) => {
     setPin(numericText);
   };
 
+  const handleNewPinChangeDirect = (text: string) => {
+    const numericText = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setPin(numericText);
+    if (numericText.length === 4) {
+      confirmPinRef.current?.focus();
+    }
+  };
+
+  const handleConfirmPinChangeDirect = (text: string) => {
+    const numericText = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setConfirmPin(numericText);
+  };
+
   const handlePhoneChange = (text: string) => {
     const cleanText = text.replace(/[^0-9]/g, '');
     setPhone(cleanText);
-    if (cleanText.length === 10) {
-      hiddenPinRef.current?.focus();
-    }
   };
 
   // Resident Specific States (Join Mode)
@@ -64,6 +87,9 @@ const AuthScreen = ({ route, navigation }: any) => {
     message: string;
     type: 'success' | 'error' | 'warning' | 'info';
     onConfirm?: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    cancelText?: string;
   }>({
     visible: false,
     title: '',
@@ -80,6 +106,9 @@ const AuthScreen = ({ route, navigation }: any) => {
     message: string,
     type: 'success' | 'error' | 'warning' | 'info',
     onConfirm?: () => void,
+    confirmText?: string,
+    cancelText?: string,
+    onCancel?: () => void,
   ) => {
     setAlertConfig({
       visible: true,
@@ -87,6 +116,9 @@ const AuthScreen = ({ route, navigation }: any) => {
       message,
       type,
       onConfirm,
+      confirmText,
+      cancelText,
+      onCancel,
     });
   };
 
@@ -97,6 +129,356 @@ const AuthScreen = ({ route, navigation }: any) => {
       index: 0,
       routes: [{ name: 'DashboardHome' }],
     });
+  };
+
+  const handleSuccessAuth = (token: string, user: any) => {
+    useAuthStore.getState().setAuth(token, user);
+    
+    if (!user?.memberships || user.memberships.length === 0) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'AuthScreen', params: { mode: 'login' } }],
+      });
+    } else if (user.memberships.length === 1) {
+      if (user.memberships[0].status === 'active') {
+        useAuthStore.getState().setActiveProfile(user.memberships[0]);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'DashboardHome' }],
+        });
+      } else {
+        useAuthStore.getState().logout();
+        Toast.show({
+          type: 'info',
+          text1: 'Approval Pending',
+          text2: 'Your membership is pending approval by the society administrator.',
+          position: 'bottom',
+        });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'AuthScreen', params: { mode: 'login' } }],
+        });
+      }
+    } else {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'ProfilePicker' }],
+      });
+    }
+  };
+
+  const handleCheckPhone = async () => {
+    const trimmedPhone = phone.trim();
+    if (!trimmedPhone) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Required Field',
+        text2: 'Phone number is required.',
+        position: 'bottom',
+      });
+    }
+
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(trimmedPhone)) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Invalid Phone Number',
+        text2: 'Phone number must be exactly 10 digits.',
+        position: 'bottom',
+      });
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiClient.post('/auth/check-phone', { phone: trimmedPhone });
+      const { status } = res.data || {};
+
+      if (status === 'invited') {
+        let formattedPhone = trimmedPhone;
+        if (!trimmedPhone.startsWith('+')) {
+          formattedPhone = `+91${trimmedPhone}`;
+        }
+        
+        const authInstance = getAuth();
+        if (__DEV__) {
+          authInstance.settings.appVerificationDisabledForTesting = true;
+        }
+        console.log("📱 Calling Firebase signInWithPhoneNumber with:", formattedPhone);
+        const confirmation = await signInWithPhoneNumber(authInstance, formattedPhone);
+        setConfirm(confirmation);
+        setLoginStep('otp');
+        Toast.show({
+          type: 'success',
+          text1: 'OTP Sent',
+          text2: `A verification code has been sent to ${formattedPhone}`,
+          position: 'bottom',
+        });
+      } else if (status === 'active') {
+        setLoginStep('pin');
+        setTimeout(() => {
+          hiddenPinRef.current?.focus();
+        }, 100);
+      }
+    } catch (error) {
+      const apiError = error as ApiResponse;
+      if (apiError.error?.code === 'NUMBER_NOT_INDEXED') {
+        showAlert(
+          'Number Not Registered',
+          'Your phone number is not pre-registered in any society database. Please contact your society administrator/secretary to be invited.',
+          'error'
+        );
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Verification Failed',
+          text2: apiError.message || 'Something went wrong. Please check your network connection.',
+          position: 'bottom',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const trimmedOtp = otpCode.trim();
+    if (!trimmedOtp || trimmedOtp.length !== 6) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Invalid OTP',
+        text2: 'Please enter a valid 6-digit OTP code.',
+        position: 'bottom',
+      });
+    }
+
+    setLoading(true);
+    try {
+      const credential = await confirm.confirm(trimmedOtp);
+      const authInstance = getAuth();
+      if (credential && authInstance.currentUser) {
+        const token = await authInstance.currentUser?.getIdToken();
+        if (token) {
+          setFirebaseToken(token);
+          if (isResettingPin) {
+            setPin('');
+            setConfirmPin('');
+            setLoginStep('reset_pin_input');
+            Toast.show({
+              type: 'success',
+              text1: 'Phone Verified',
+              text2: 'Please enter your new 4-digit secret PIN.',
+              position: 'bottom',
+            });
+          } else {
+            setLoginStep('activate');
+            Toast.show({
+              type: 'success',
+              text1: 'Phone Verified',
+              text2: 'Please set up your profile name and secure 4-digit PIN.',
+              position: 'bottom',
+            });
+          }
+        } else {
+          throw new Error('Could not retrieve Firebase token.');
+        }
+      } else {
+        throw new Error('Verification failed.');
+      }
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: 'error',
+        text1: 'Verification Failed',
+        text2: 'Invalid OTP code. Please try again.',
+        position: 'bottom',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActivateAccount = async () => {
+    const trimmedName = name.trim();
+    const trimmedPin = pin.trim();
+    const trimmedConfirmPin = confirmPin.trim();
+
+    if (!trimmedName || !trimmedPin || !trimmedConfirmPin) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Required Fields',
+        text2: 'Name and PIN setup fields are required.',
+        position: 'bottom',
+      });
+    }
+
+    if (trimmedPin.length !== 4 || trimmedConfirmPin.length !== 4) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Invalid PIN',
+        text2: 'PIN must be exactly 4 digits.',
+        position: 'bottom',
+      });
+    }
+
+    if (trimmedPin !== trimmedConfirmPin) {
+      return Toast.show({
+        type: 'error',
+        text1: 'PIN Mismatch',
+        text2: 'The entered PINs do not match.',
+        position: 'bottom',
+      });
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiClient.post('/auth/activate', {
+        phone: phone.trim(),
+        firebaseToken,
+        name: trimmedName,
+        pin: trimmedPin,
+      });
+
+      const { token, user } = res.data || {};
+      Toast.show({
+        type: 'success',
+        text1: 'Activation Complete',
+        text2: 'Your account is active and you are logged in.',
+        position: 'bottom',
+      });
+
+      handleSuccessAuth(token, user);
+    } catch (error) {
+      const apiError = error as ApiResponse;
+      Toast.show({
+        type: 'error',
+        text1: 'Activation Failed',
+        text2: apiError.message || 'Could not activate account. Please retry.',
+        position: 'bottom',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPinTrigger = () => {
+    let formattedPhone = phone.trim();
+    if (!formattedPhone.startsWith('+')) {
+      formattedPhone = `+91${formattedPhone}`;
+    }
+
+    showAlert(
+      'Reset PIN Confirmation',
+      `Are you sure you want to verify your phone number ${formattedPhone} via OTP to reset your secure PIN?`,
+      'info',
+      () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        setIsResettingPin(true);
+        triggerForgotPinSms(formattedPhone);
+      },
+      'Confirm',
+      'Change Number',
+      () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+        setLoginStep('phone');
+        setPin('');
+      }
+    );
+  };
+
+  const triggerForgotPinSms = async (formattedPhone: string) => {
+    setLoading(true);
+    try {
+      const authInstance = getAuth();
+      if (__DEV__) {
+        authInstance.settings.appVerificationDisabledForTesting = true;
+      }
+      console.log("📱 Calling Firebase signInWithPhoneNumber for Reset PIN with:", formattedPhone);
+      const confirmation = await signInWithPhoneNumber(authInstance, formattedPhone);
+      setConfirm(confirmation);
+      setLoginStep('otp');
+      Toast.show({
+        type: 'success',
+        text1: 'OTP Sent',
+        text2: `A verification code has been sent to ${formattedPhone}`,
+        position: 'bottom',
+      });
+    } catch (error) {
+      console.error("Firebase Auth trigger failed for reset pin:", error);
+      Toast.show({
+        type: 'error',
+        text1: 'SMS Dispatch Failed',
+        text2: 'Could not send verification code. Please check SMS region policies.',
+        position: 'bottom',
+      });
+      setIsResettingPin(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPinSubmit = async () => {
+    const trimmedPin = pin.trim();
+    const trimmedConfirmPin = confirmPin.trim();
+
+    if (!trimmedPin || !trimmedConfirmPin) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Required Fields',
+        text2: 'Both PIN fields are required.',
+        position: 'bottom',
+      });
+    }
+
+    if (trimmedPin.length !== 4 || trimmedConfirmPin.length !== 4) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Invalid PIN',
+        text2: 'PIN must be exactly 4 digits.',
+        position: 'bottom',
+      });
+    }
+
+    if (trimmedPin !== trimmedConfirmPin) {
+      return Toast.show({
+        type: 'error',
+        text1: 'PIN Mismatch',
+        text2: 'The entered PINs do not match.',
+        position: 'bottom',
+      });
+    }
+
+    setLoading(true);
+    try {
+      await apiClient.post('/auth/reset-pin', {
+        phone: phone.trim(),
+        firebaseToken,
+        pin: trimmedPin,
+      });
+
+      showAlert(
+        'PIN Reset Complete',
+        'Your secret login PIN has been updated successfully. Please log in using your new PIN.',
+        'success',
+        () => {
+          setAlertConfig(prev => ({ ...prev, visible: false }));
+          setIsResettingPin(false);
+          setLoginStep('phone');
+          setPhone('');
+          setPin('');
+          setConfirmPin('');
+        }
+      );
+    } catch (error) {
+      const apiError = error as ApiResponse;
+      Toast.show({
+        type: 'error',
+        text1: 'Reset Failed',
+        text2: apiError.message || 'Could not update your PIN. Please try again.',
+        position: 'bottom',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDismissProfileModal = () => {
@@ -142,24 +524,7 @@ const AuthScreen = ({ route, navigation }: any) => {
       if (mode === 'login') {
         const res = await apiClient.post('/auth/login', { phone: trimmedPhone, pin: trimmedPin });
         const { token, user } = res.data || {};
-
-        useAuthStore.getState().setAuth(token, user);
-
-        if (!user?.memberships || user.memberships.length === 0) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'GatewayScreen' }],
-          });
-        } else if (user.memberships.length === 1 && user.memberships[0].status === 'active') {
-          useAuthStore.getState().setActiveProfile(user.memberships[0]);
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'DashboardHome' }],
-          });
-        } else {
-          setUserMemberships(user.memberships || []);
-          setShowProfileModal(true);
-        }
+        handleSuccessAuth(token, user);
       } else if (mode === 'join') {
         if (!name || !flatNumber) {
           return Toast.show({
@@ -184,7 +549,10 @@ const AuthScreen = ({ route, navigation }: any) => {
           'success',
           () => {
             setAlertConfig(prev => ({ ...prev, visible: false }));
-            navigation.navigate('GatewayScreen');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'AuthScreen', params: { mode: 'login' } }],
+            });
           },
         );
       } else if (mode === 'create') {
@@ -214,7 +582,10 @@ const AuthScreen = ({ route, navigation }: any) => {
           'success',
           () => {
             setAlertConfig(prev => ({ ...prev, visible: false }));
-            navigation.navigate('GatewayScreen');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'AuthScreen', params: { mode: 'login' } }],
+            });
           },
         );
       }
@@ -242,85 +613,439 @@ const AuthScreen = ({ route, navigation }: any) => {
         <View className="bg-white p-6 rounded-3xl border border-slate-100 w-full shadow-sm">
           {/* Dynamic Header Text */}
           <Text className="text-2xl font-bold text-slate-800 mb-1 tracking-tight">
-            {mode === 'login' && 'Welcome Back'}
+            {mode === 'login' && (
+              <>
+                {loginStep === 'phone' && 'Sign In'}
+                {loginStep === 'otp' && 'Verify Code'}
+                {loginStep === 'activate' && 'Activate Account'}
+                {loginStep === 'pin' && 'Enter PIN'}
+                {loginStep === 'reset_pin_input' && 'Reset PIN'}
+              </>
+            )}
             {mode === 'join' && `Join ${society?.name}`}
             {mode === 'create' && 'Register Your Society'}
           </Text>
           <Text className="text-sm text-[#5f6d7e] mb-6">
-            {mode === 'login' && 'Enter credentials to access your dashboard'}
+            {mode === 'login' && (
+              <>
+                {loginStep === 'phone' && 'Enter your phone number to check registration status'}
+                {loginStep === 'otp' && 'Enter the 6-digit verification code sent to your phone'}
+                {loginStep === 'activate' && 'Enter your name and choose a secure 4-digit login PIN'}
+                {loginStep === 'pin' && 'Enter your 4-digit secret PIN to log in'}
+                {loginStep === 'reset_pin_input' && 'Choose a new secure 4-digit login PIN'}
+              </>
+            )}
             {mode === 'join' && 'Fill in your flat info to request access'}
             {mode === 'create' && 'Setup your management committee account'}
           </Text>
 
-          {/* Core Profile Fields (Required for Registration) */}
-          {mode !== 'login' && (
-            <TextInput
-              className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
-              placeholder="Your Full Name"
-              placeholderTextColor="#94a3b8"
-              keyboardAppearance="light"
-              value={name}
-              onChangeText={setName}
-            />
-          )}
-
-          {/* Credentials Group */}
-          <TextInput
-            className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
-            placeholder="Phone Number"
-            placeholderTextColor="#94a3b8"
-            keyboardType="phone-pad"
-            keyboardAppearance="light"
-            maxLength={10}
-            value={phone}
-            onChangeText={handlePhoneChange}
-          />
-
-          {/* Custom 4-Box PIN Input (Fully Masked/Instant Hide) */}
-          <View className="mb-4">
-            <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-              {mode === 'login' ? 'Secret PIN' : 'Set Secret PIN (4 digits)'}
-            </Text>
-            
-            <TouchableOpacity 
-              activeOpacity={1} 
-              onPress={() => hiddenPinRef.current?.focus()}
-              className="flex-row justify-between"
-            >
-              {[0, 1, 2, 3].map((idx) => {
-                const isFocused = isPinInputFocused && pin.length === idx;
-                const hasDigit = pin.length > idx;
-                
-                return (
-                  <View
-                    key={idx}
-                    className={`w-[22%] bg-[#f1f5f9] border-b-2 py-4 items-center justify-center rounded-xl h-14 ${
-                      isFocused ? 'border-[#006d3b] bg-slate-50' : 'border-slate-200'
-                    }`}
+          {/* Conditional Input Rendering based on Mode */}
+          {mode === 'login' ? (
+            <View>
+              {loginStep === 'phone' && (
+                <View>
+                  <TextInput
+                    className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                    placeholder="Phone Number"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="phone-pad"
+                    keyboardAppearance="light"
+                    maxLength={10}
+                    value={phone}
+                    onChangeText={setPhone}
+                  />
+                  <TouchableOpacity
+                    onPress={handleCheckPhone}
+                    disabled={loading}
+                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
                   >
-                    {hasDigit ? (
-                      <Text className="text-xl font-bold text-slate-800">*</Text>
-                    ) : isFocused && cursorVisible ? (
-                      <View className="w-0.5 h-6 bg-[#006d3b]" />
-                    ) : null}
-                  </View>
-                );
-              })}
-            </TouchableOpacity>
+                    <Text className="text-white font-bold text-base">
+                      {loading ? 'Verifying...' : 'Next'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setName('');
+                      setPhone('');
+                      setPin('');
+                      setConfirmPin('');
+                      navigation.setParams({ mode: 'create' });
+                    }}
+                    className="w-full py-2.5 rounded-xl justify-center items-center active:bg-slate-100"
+                  >
+                    <Text className="text-[#006d3b] font-bold text-sm">
+                      Register a new society
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            <TextInput
-              ref={hiddenPinRef}
-              style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
-              keyboardType="numeric"
-              keyboardAppearance="light"
-              maxLength={4}
-              value={pin}
-              onChangeText={handlePinChangeDirect}
-              onFocus={() => setIsPinInputFocused(true)}
-              onBlur={() => setIsPinInputFocused(false)}
-              caretHidden
-            />
-          </View>
+              {loginStep === 'otp' && (
+                <View>
+                  <TextInput
+                    className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                    placeholder="6-Digit OTP Code"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    keyboardAppearance="light"
+                    maxLength={6}
+                    value={otpCode}
+                    onChangeText={setOtpCode}
+                  />
+                  <TouchableOpacity
+                    onPress={handleVerifyOtp}
+                    disabled={loading}
+                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
+                  >
+                    <Text className="text-white font-bold text-base">
+                      {loading ? 'Verifying OTP...' : 'Verify OTP'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setLoginStep('phone');
+                      setOtpCode('');
+                    }}
+                    className="w-full py-2.5 rounded-xl justify-center items-center active:bg-slate-100"
+                  >
+                    <Text className="text-slate-500 font-semibold text-sm">
+                      Change Phone Number
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {loginStep === 'activate' && (
+                <View>
+                  <TextInput
+                    className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                    placeholder="Your Full Name"
+                    placeholderTextColor="#94a3b8"
+                    keyboardAppearance="light"
+                    value={name}
+                    onChangeText={setName}
+                  />
+                  <TextInput
+                    className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                    placeholder="Set 4-Digit Secret PIN"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    secureTextEntry
+                    maxLength={4}
+                    keyboardAppearance="light"
+                    value={pin}
+                    onChangeText={handlePinChangeDirect}
+                  />
+                  <TextInput
+                    className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                    placeholder="Confirm 4-Digit Secret PIN"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    secureTextEntry
+                    maxLength={4}
+                    keyboardAppearance="light"
+                    value={confirmPin}
+                    onChangeText={setConfirmPin}
+                  />
+                  <TouchableOpacity
+                    onPress={handleActivateAccount}
+                    disabled={loading}
+                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
+                  >
+                    <Text className="text-white font-bold text-base">
+                      {loading ? 'Activating Account...' : 'Activate Account'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {loginStep === 'reset_pin_input' && (
+                <View>
+                  {/* New PIN custom input */}
+                  <View className="mb-4">
+                    <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                      New Secret PIN (4 digits)
+                    </Text>
+                    
+                    <View className="flex-row justify-between relative">
+                      {[0, 1, 2, 3].map((idx) => {
+                        const isFocused = isNewPinFocused && pin.length === idx;
+                        const hasDigit = pin.length > idx;
+                        
+                        return (
+                          <View
+                            key={idx}
+                            className={`w-[22%] bg-[#f1f5f9] border-b-2 py-4 items-center justify-center rounded-xl h-14 ${
+                              isFocused ? 'border-[#006d3b] bg-slate-50' : 'border-slate-200'
+                            }`}
+                          >
+                            {hasDigit ? (
+                              <Text className="text-xl font-bold text-slate-800">*</Text>
+                            ) : isFocused && cursorVisible ? (
+                              <View className="w-0.5 h-6 bg-[#006d3b]" />
+                            ) : null}
+                          </View>
+                        );
+                      })}
+
+                      <TextInput
+                        ref={newPinRef}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          opacity: 0.01,
+                          color: 'transparent',
+                          backgroundColor: 'transparent',
+                        }}
+                        keyboardType="numeric"
+                        keyboardAppearance="light"
+                        maxLength={4}
+                        value={pin}
+                        onChangeText={handleNewPinChangeDirect}
+                        onFocus={() => setIsNewPinFocused(true)}
+                        onBlur={() => setIsNewPinFocused(false)}
+                        caretHidden
+                      />
+                    </View>
+                  </View>
+
+                  {/* Confirm PIN custom input */}
+                  <View className="mb-6">
+                    <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                      Confirm New PIN (4 digits)
+                    </Text>
+                    
+                    <View className="flex-row justify-between relative">
+                      {[0, 1, 2, 3].map((idx) => {
+                        const isFocused = isConfirmPinFocused && confirmPin.length === idx;
+                        const hasDigit = confirmPin.length > idx;
+                        
+                        return (
+                          <View
+                            key={idx}
+                            className={`w-[22%] bg-[#f1f5f9] border-b-2 py-4 items-center justify-center rounded-xl h-14 ${
+                              isFocused ? 'border-[#006d3b] bg-slate-50' : 'border-slate-200'
+                            }`}
+                          >
+                            {hasDigit ? (
+                              <Text className="text-xl font-bold text-slate-800">*</Text>
+                            ) : isFocused && cursorVisible ? (
+                              <View className="w-0.5 h-6 bg-[#006d3b]" />
+                            ) : null}
+                          </View>
+                        );
+                      })}
+
+                      <TextInput
+                        ref={confirmPinRef}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          opacity: 0.01,
+                          color: 'transparent',
+                          backgroundColor: 'transparent',
+                        }}
+                        keyboardType="numeric"
+                        keyboardAppearance="light"
+                        maxLength={4}
+                        value={confirmPin}
+                        onChangeText={handleConfirmPinChangeDirect}
+                        onFocus={() => setIsConfirmPinFocused(true)}
+                        onBlur={() => setIsConfirmPinFocused(false)}
+                        caretHidden
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={handleResetPinSubmit}
+                    disabled={loading}
+                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
+                  >
+                    <Text className="text-white font-bold text-base">
+                      {loading ? 'Resetting PIN...' : 'Reset PIN'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsResettingPin(false);
+                      setLoginStep('phone');
+                      setPin('');
+                      setConfirmPin('');
+                    }}
+                    className="w-full py-2.5 rounded-xl justify-center items-center active:bg-slate-100"
+                  >
+                    <Text className="text-[#006d3b] font-semibold text-sm">
+                      ← Back to Sign In
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {loginStep === 'pin' && (
+                <View>
+                  <View className="mb-4">
+                    <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                      Secret PIN
+                    </Text>
+                    
+                    <View className="flex-row justify-between relative">
+                      {[0, 1, 2, 3].map((idx) => {
+                        const isFocused = isPinInputFocused && pin.length === idx;
+                        const hasDigit = pin.length > idx;
+                        
+                        return (
+                          <View
+                            key={idx}
+                            className={`w-[22%] bg-[#f1f5f9] border-b-2 py-4 items-center justify-center rounded-xl h-14 ${
+                              isFocused ? 'border-[#006d3b] bg-slate-50' : 'border-slate-200'
+                            }`}
+                          >
+                            {hasDigit ? (
+                              <Text className="text-xl font-bold text-slate-800">*</Text>
+                            ) : isFocused && cursorVisible ? (
+                              <View className="w-0.5 h-6 bg-[#006d3b]" />
+                            ) : null}
+                          </View>
+                        );
+                      })}
+
+                      <TextInput
+                        ref={hiddenPinRef}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          opacity: 0.01,
+                          color: 'transparent',
+                          backgroundColor: 'transparent',
+                        }}
+                        keyboardType="numeric"
+                        keyboardAppearance="light"
+                        maxLength={4}
+                        value={pin}
+                        onChangeText={handlePinChangeDirect}
+                        onFocus={() => setIsPinInputFocused(true)}
+                        onBlur={() => setIsPinInputFocused(false)}
+                        caretHidden
+                      />
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleForgotPinTrigger}
+                    className="self-end mb-4 -mt-2 pr-1"
+                  >
+                    <Text className="text-[#006d3b] text-xs font-semibold">
+                      Forgot PIN?
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSubmit}
+                    disabled={loading}
+                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
+                  >
+                    <Text className="text-white font-bold text-base">
+                      {loading ? 'Logging in...' : 'Login'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setLoginStep('phone');
+                      setPin('');
+                    }}
+                    className="w-full py-2.5 rounded-xl justify-center items-center active:bg-slate-100"
+                  >
+                    <Text className="text-[#006d3b] font-semibold text-sm">
+                      ← Back to Sign In
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : (
+            <>
+              {/* Core Profile Fields (Required for Registration) */}
+              <TextInput
+                className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                placeholder="Your Full Name"
+                placeholderTextColor="#94a3b8"
+                keyboardAppearance="light"
+                value={name}
+                onChangeText={setName}
+              />
+
+              {/* Credentials Group */}
+              <TextInput
+                className="w-full bg-[#f1f5f9] border-b-2 border-slate-200 px-4 py-3 text-slate-800 text-base mb-4 rounded-t-xl focus:border-[#006d3b]"
+                placeholder="Phone Number"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                keyboardAppearance="light"
+                maxLength={10}
+                value={phone}
+                onChangeText={handlePhoneChange}
+              />
+
+              {/* Custom 4-Box PIN Input */}
+              <View className="mb-4">
+                <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  Set Secret PIN (4 digits)
+                </Text>
+                
+                <View className="flex-row justify-between relative">
+                  {[0, 1, 2, 3].map((idx) => {
+                    const isFocused = isPinInputFocused && pin.length === idx;
+                    const hasDigit = pin.length > idx;
+                    
+                    return (
+                      <View
+                        key={idx}
+                        className={`w-[22%] bg-[#f1f5f9] border-b-2 py-4 items-center justify-center rounded-xl h-14 ${
+                          isFocused ? 'border-[#006d3b] bg-slate-50' : 'border-slate-200'
+                        }`}
+                      >
+                        {hasDigit ? (
+                          <Text className="text-xl font-bold text-slate-800">*</Text>
+                        ) : isFocused && cursorVisible ? (
+                          <View className="w-0.5 h-6 bg-[#006d3b]" />
+                        ) : null}
+                      </View>
+                    );
+                  })}
+
+                  <TextInput
+                    ref={hiddenPinRef}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      opacity: 0.01,
+                      color: 'transparent',
+                      backgroundColor: 'transparent',
+                    }}
+                    keyboardType="numeric"
+                    keyboardAppearance="light"
+                    maxLength={4}
+                    value={pin}
+                    onChangeText={handlePinChangeDirect}
+                    onFocus={() => setIsPinInputFocused(true)}
+                    onBlur={() => setIsPinInputFocused(false)}
+                    caretHidden
+                  />
+                </View>
+              </View>
+            </>
+          )}
 
           {/* --- DYNAMIC SECTION: RESIDENT INFO --- */}
           {mode === 'join' && (
@@ -472,31 +1197,31 @@ const AuthScreen = ({ route, navigation }: any) => {
           )}
 
           {/* Action Button */}
-          <TouchableOpacity
-            className={`w-full py-3.5 rounded-xl justify-center items-center ${
-              loading ? 'bg-emerald-400' : 'bg-[#006d3b]'
-            }`}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text className="text-white font-semibold text-base">
-              {loading
-                ? 'Processing...'
-                : mode === 'login'
-                ? 'Login'
-                : 'Submit Registration'}
-            </Text>
-          </TouchableOpacity>
+          {mode !== 'login' && (
+            <TouchableOpacity
+              className={`w-full py-3.5 rounded-xl justify-center items-center ${
+                loading ? 'bg-emerald-400' : 'bg-[#006d3b]'
+              }`}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text className="text-white font-semibold text-base">
+                {loading ? 'Processing...' : 'Submit Registration'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Back Link */}
-          <TouchableOpacity
-            className="mt-4 items-center"
-            onPress={() => navigation.navigate('GatewayScreen')}
-          >
-            <Text className="text-[#006d3b] text-sm font-medium">
-              ← Change Society Selection
-            </Text>
-          </TouchableOpacity>
+          {mode !== 'login' && (
+            <TouchableOpacity
+              className="mt-4 items-center"
+              onPress={() => navigation.setParams({ mode: 'login' })}
+            >
+              <Text className="text-[#006d3b] text-sm font-medium">
+                ← Back to Sign In
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
       <CustomAlert
@@ -504,8 +1229,16 @@ const AuthScreen = ({ route, navigation }: any) => {
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
-        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+        onClose={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          } else {
+            setAlertConfig(prev => ({ ...prev, visible: false }));
+          }
+        }}
         onConfirm={alertConfig.onConfirm}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
       />
       <Modal
         visible={showProfileModal}

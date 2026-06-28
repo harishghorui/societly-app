@@ -2,6 +2,7 @@ import axios, { AxiosResponse, AxiosError } from 'axios';
 import { Platform } from 'react-native';
 import { ApiResponse } from '../types/api.types';
 import { useAuthStore } from '../store/useAuthStore';
+import * as RootNavigation from '../utils/RootNavigation';
 
 // Change this when your laptop's IP changes
 const LOCAL_IP = '192.168.0.112';
@@ -53,6 +54,12 @@ apiClient.interceptors.response.use(
         message: serverPayload.message || 'An unexpected operation error occurred.',
         error: serverPayload.error || { code: 'UNKNOWN_ERROR' }
       };
+
+      // If the session token is expired or invalid, auto-logout and reset stack to gateway login
+      if (structuredError.error?.code === 'INVALID_TOKEN') {
+        useAuthStore.getState().logout();
+        RootNavigation.reset([{ name: 'AuthScreen' }]);
+      }
     } else if (error.request) {
       // Request sent but zero packets returned
       structuredError.message = 'The server is unreachable. Check your wireless connection status.';

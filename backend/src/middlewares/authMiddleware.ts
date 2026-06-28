@@ -64,6 +64,15 @@ export const authenticateJWT = async (
       );
     }
 
+    if (user.status === "suspended") {
+      return sendError(
+        res,
+        403,
+        "Access Denied. Your account has been suspended.",
+        "ACCOUNT_SUSPENDED",
+      );
+    }
+
     req.user = user;
     next();
   } catch (error: any) {

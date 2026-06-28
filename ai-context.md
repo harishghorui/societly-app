@@ -72,6 +72,10 @@ Frontend files must wrap catches by casting to this contract type:
 (err as ApiResponse)
 ```
 
+### Automatic Invalidation of Expired Sessions
+
+If any API response returns `INVALID_TOKEN` (such as when the local JWT expires), the Axios response interceptor in `client.ts` automatically calls `useAuthStore.getState().logout()` and resets the navigation stack back to `GatewayScreen`. This prevents the application from getting stuck on startup or screen loads with a dead session token.
+
 ## 5. Cloudflare R2 Storage Architecture
 
 * Media asset storage is centralized via Cloudflare R2 using the official AWS S3 SDK on the backend server.
@@ -218,9 +222,11 @@ Additionally, to enforce absolute compile-time type-safety across models and ass
 import { Model, InferAttributes, InferCreationAttributes } from "sequelize";
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
-  declare id: number;
+  declare id: CreationOptional<number>;
   declare name: string;
   declare phone: string;
+  declare pin: string | null;
+  declare status: CreationOptional<"invited" | "active" | "suspended">;
 }
 ```
 
@@ -412,13 +418,26 @@ societly-app/
     │   │   └── useAuthStore.ts
     │   ├── types/
     │   │   └── api.types.ts
-    │   └── utils/
-    │       ├── permissions.ts
-    │       └── theme.ts
-    └── App.tsx
+    │   ├── utils/
+    │   │   ├── permissions.ts
+    │   │   ├── RootNavigation.ts
+    │   │   └── theme.ts
+    │   └── App.tsx
 ```
 
 # 🚦 Workflow Operations
+
+## Expired Token Auto-Logout
+1. API client intercepts 401 Unauthorized responses.
+2. Triggers `useAuthStore.getState().logout()`.
+3. Uses `RootNavigation` to force-navigate the user back to the `AuthScreen` regardless of current navigation stack depth.
+
+## Zero-Search Onboarding & Single Identity Auth
+1. **Phone Status Verification**: User starts login on `AuthScreen` by entering their phone number. The app calls `POST /auth/check-phone`.
+2. **If Number Unknown**: Returns `NUMBER_NOT_INDEXED`. User is blocked and instructed to contact their admin/secretary to be added.
+3. **If Invited (status === 'invited')**: Triggers the Firebase Phone OTP verification stream. After client-side SMS verification, the Firebase ID token is sent to `POST /auth/activate` along with the user's name and new 4-digit PIN. The backend validates the Firebase token and activates the account (`status: 'active'`).
+4. **If Active (status === 'active')**: Bypasses OTP entirely and routes user directly to the 4-digit secret PIN entry view to login via `POST /auth/login`.
+5. **Context Switcher**: If the user holds multiple active memberships, they are routed to `ProfilePicker` on login. In the app, a workspace dropdown in `Sidebar` updates the active profile and resets navigation, allowing instant multi-tenant switching.
 
 ## Secure Anonymous Complaint Path
 
@@ -502,13 +521,13 @@ before sending data to clients.
 
 ---
 
-## Property Layout Configuration Path
+## Property Layout & Resident Onboarding Configuration Path
 
-1. Admin opens `SocietyProfileScreen` and clicks 'Edit' (if admin).
-2. Admin chooses the society structure type ('Single Building' vs 'Multi-Wing').
-3. For Single Building structures, flats are configured under an implicit single list. For Multi-Wing structures, a wing-based layout cards builder is rendered.
-4. Admin defines/updates flat numbers, BHK types, and square footage.
-5. Saving triggers a custom confirmation alert, then calls the backend to update both the society details and the wings/flats structure.
+1. **Initial Registration**: Admin registers the society on `GatewayScreen`/`AuthScreen`, specifying the property structure type ('Single Building' vs 'Multi-Wing').
+2. **Unified Financial Setup**: Under the `FinancialOnboardingWizard` flow, the admin configures both the Property Master Layout and the Resident Matrix inside a single, unified setup step.
+3. **Adaptive UI Matrix**: For Single Building structures, flats and resident rows are entered directly in a universal list. For Multi-Wing structures, a wing-based unified list is rendered allowing the admin to add wings and specify flats within them.
+4. **Unified Seeding**: Saving this consolidated layout compiles both the layout specs (wings/flats sizes and types) and the active resident rosters, executing the respective API updates sequentially.
+5. **Profile Profile & Structure Updates**: Post-onboarding, the admin can edit core society details (Name, Address, Govt Registration No, and structureType view/edit switches) inside the `SocietyProfileScreen`. If the admin changes the saved `structureType`, a confirmation alert warns them that this action will invalidate existing unit configurations.
 
 ---
 
