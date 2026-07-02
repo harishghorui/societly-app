@@ -188,9 +188,7 @@ const DashboardHome = ({ navigation }: any) => {
 
   useEffect(() => {
     loadDashboardData();
-    if (role === 'admin' || role === 'treasurer') {
-      fetchFinanceSummary();
-    }
+    fetchFinanceSummary();
   }, [societyId, role, membershipId]);
 
   const executeApprovalAction = async (
@@ -484,6 +482,39 @@ const DashboardHome = ({ navigation }: any) => {
           </View>
         ) : (
           <View className="space-y-6">
+            {/* Society master balance pool snapshot for residents when transparency is enabled */}
+            {summary?.transparencyEnabled && (
+              <View className="space-y-3">
+                <Text className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Society Finance Pool
+                </Text>
+                <View className="flex-row justify-between">
+                  <View
+                    style={globalStyles.shadowAmbient}
+                    className="bg-white border border-slate-100 rounded-2xl p-4 w-[48%]"
+                  >
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                      Bank Balance
+                    </Text>
+                    <Text className="text-lg font-bold text-slate-800 mt-1">
+                      ₹{Number(summary?.bankBalance || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View
+                    style={globalStyles.shadowAmbient}
+                    className="bg-white border border-slate-100 rounded-2xl p-4 w-[48%]"
+                  >
+                    <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                      Cash Reserves
+                    </Text>
+                    <Text className="text-lg font-bold text-slate-800 mt-1">
+                      ₹{Number(summary?.cashBalance || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Resident Ledger Widget Card */}
             {fetchingInvoice ? (
               <View className="bg-white rounded-3xl border border-slate-100 p-6 items-center justify-center h-40">

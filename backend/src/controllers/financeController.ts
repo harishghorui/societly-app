@@ -5,6 +5,7 @@ import Expense from "../models/Expense.js";
 import Invoice from "../models/Invoice.js";
 import Membership from "../models/Membership.js";
 import SocietyBalance from "../models/SocietyBalance.js";
+import Society from "../models/Society.js";
 import { sendError, sendSuccess } from "../utils/responseWrapper.js";
 import { uploadToR2 } from "../utils/r2Uploader.js";
 
@@ -12,6 +13,32 @@ import { uploadToR2 } from "../utils/r2Uploader.js";
 export const getFinancialSummary = async (req: Request, res: Response) => {
   const { societyId } = req.query;
   try {
+    if (!req.user) {
+      return sendError(res, 401, "User authentication required.", "UNAUTHENTICATED");
+    }
+
+    const membership = await Membership.findOne({
+      where: {
+        userId: req.user.id,
+        societyId: Number(societyId),
+        status: "active",
+      },
+    });
+
+    if (!membership) {
+      return sendError(
+        res,
+        403,
+        "Access Denied. You are not an active member of this society.",
+        "UNAUTHORIZED_ACCESS"
+      );
+    }
+
+    const society = await Society.findByPk(Number(societyId));
+    if (!society) {
+      return sendError(res, 404, "Society not found.", "SOCIETY_NOT_FOUND");
+    }
+
     const collectedData =
       (await Invoice.sum("amount", {
         where: { societyId: Number(societyId), status: "paid" },
@@ -26,11 +53,16 @@ export const getFinancialSummary = async (req: Request, res: Response) => {
       where: { societyId: Number(societyId) },
     });
 
+    const isAuthorizedRole = ["admin", "treasurer"].includes(membership.role);
+    const transparencyEnabled = society.financialTransparencyEnabled || false;
+    const revealBalances = isAuthorizedRole || transparencyEnabled;
+
     return sendSuccess(res, 200, "Financial summary loaded successfully", {
       totalCollected: collectedData,
       totalPending: pendingData,
-      cashBalance: balances?.cashBalance || 0,
-      bankBalance: balances?.bankBalance || 0,
+      cashBalance: revealBalances ? (balances?.cashBalance || 0) : null,
+      bankBalance: revealBalances ? (balances?.bankBalance || 0) : null,
+      transparencyEnabled,
     });
   } catch (error) {
     return sendError(
@@ -573,6 +605,16 @@ export const topupWallet = async (req: Request, res: Response) => {
         404,
         "Resident membership not found in this society.",
         "RESIDENT_NOT_FOUND",
+      );
+    }
+
+    if (!targetMembership.flatId || !targetMembership.flatNumber) {
+      await t.rollback();
+      return sendError(
+        res,
+        400,
+        "Cannot top up wallet for a member without a linked flat.",
+        "MEMBER_NOT_LINKED_TO_FLAT",
       );
     }
 

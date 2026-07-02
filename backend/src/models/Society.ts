@@ -9,6 +9,7 @@ class Society extends Model<InferAttributes<Society>, InferCreationAttributes<So
   declare govtRegistrationNo: string;
   declare structureType: CreationOptional<"single_building" | "multi_wing">;
   declare onboardingStep: CreationOptional<"PROFILE" | "LAYOUT" | "FINANCIAL" | "COMPLETED">;
+  declare financialTransparencyEnabled: CreationOptional<boolean>;
 }
 
 Society.init(
@@ -34,6 +35,11 @@ Society.init(
     onboardingStep: {
       type: DataTypes.ENUM("PROFILE", "LAYOUT", "FINANCIAL", "COMPLETED"),
       defaultValue: "PROFILE",
+      allowNull: false,
+    },
+    financialTransparencyEnabled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
       allowNull: false,
     },
   },

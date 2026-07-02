@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import * as RootNavigation from '../utils/RootNavigation';
 
 // Change this when your laptop's IP changes
-const LOCAL_IP = '192.168.0.112';
+const LOCAL_IP = '192.168.0.103';
 
 const BASE_URL = __DEV__
   ? Platform.OS === 'android'

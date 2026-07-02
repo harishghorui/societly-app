@@ -166,9 +166,8 @@ function AppContent() {
           />
 
         </Stack.Navigator>
+        <Toast />
       </NavigationContainer>
-
-      <Toast />
     </View>
   );
 }

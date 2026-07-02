@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -24,6 +24,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { ApiResponse } from '../types/api.types';
 import CustomAlert from '../components/CustomAlert';
 import { usePropertyLayout, WingLayoutInput } from '../hooks/usePropertyLayout';
+import { ResidentRosterEngine, RosterEntry } from '../components/ResidentRosterEngine';
 
 const FLAT_TYPES = ['1BHK', '2BHK', '3BHK', 'Shop', 'Office', 'Other'];
 
@@ -76,6 +77,31 @@ export const FinancialOnboardingWizard = ({ navigation }: any) => {
     fetchPropertyLayout();
   }, [fetchPropertyLayout]);
 
+  // Fetch latest society onboardingStep status on mount to keep local store in sync
+  useEffect(() => {
+    const fetchLatestStatus = async () => {
+      if (!societyId || !activeMembership) return;
+      try {
+        const res = await apiClient.get<any, ApiResponse>(`/societies/${societyId}`);
+        if (res.success && res.data) {
+          const latestStep = res.data.onboardingStep;
+          if (latestStep && latestStep !== activeMembership.society?.onboardingStep) {
+            setActiveProfile({
+              ...activeMembership,
+              society: {
+                ...activeMembership.society,
+                onboardingStep: latestStep,
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch society status on mount:', err);
+      }
+    };
+    fetchLatestStatus();
+  }, [societyId, activeMembership, setActiveProfile]);
+
   // Sync layout inputs based on wings data
   useEffect(() => {
     if (wings && wings.length > 0) {
@@ -97,18 +123,14 @@ export const FinancialOnboardingWizard = ({ navigation }: any) => {
         setLocalWings([
           {
             name: 'Main',
-            flats: [
-              { flatNumber: '101', flatType: '2BHK', squareFootage: '1000', residentName: 'Aarav Sharma', phone: '9876543210', advanceWalletBalance: '1500', arrears: '3000' }
-            ]
+            flats: []
           }
         ]);
       } else {
         setLocalWings([
           {
-            name: 'Wing A',
-            flats: [
-              { flatNumber: '101', flatType: '2BHK', squareFootage: '1000', residentName: 'Aarav Sharma', phone: '9876543210', advanceWalletBalance: '1500', arrears: '3000' }
-            ]
+            name: 'Main',
+            flats: []
           }
         ]);
       }
@@ -200,6 +222,55 @@ export const FinancialOnboardingWizard = ({ navigation }: any) => {
         }
       ]);
     }
+  };
+
+  const rosterData = useMemo(() => {
+    const flatList: RosterEntry[] = [];
+    (localWings || []).forEach((wing, wingIdx) => {
+      (wing.flats || []).forEach((flat, flatIdx) => {
+        flatList.push({
+          id: `${wingIdx}-${flatIdx}`,
+          flatNumber: flat.flatNumber,
+          flatType: flat.flatType,
+          squareFootage: flat.squareFootage,
+          wingName: wing.name,
+          name: flat.residentName,
+          phone: flat.phone,
+          role: 'tenant',
+          designation: 'Resident',
+          advanceWalletBalance: flat.advanceWalletBalance,
+          arrears: flat.arrears,
+          userStatus: 'invited',
+        });
+      });
+    });
+    return flatList;
+  }, [localWings]);
+
+  const handleRosterChange = (newRoster: RosterEntry[]) => {
+    const wingMap: { [key: string]: UnifiedFlatInput[] } = {};
+    newRoster.forEach(item => {
+      const wingName = item.wingName || 'Main';
+      if (!wingMap[wingName]) {
+        wingMap[wingName] = [];
+      }
+      wingMap[wingName].push({
+        flatNumber: item.flatNumber,
+        flatType: item.flatType || '2BHK',
+        squareFootage: String(item.squareFootage || '1000'),
+        residentName: item.name,
+        phone: item.phone,
+        advanceWalletBalance: String(item.advanceWalletBalance || '0'),
+        arrears: String(item.arrears || '0'),
+      });
+    });
+
+    const updatedWings = Object.keys(wingMap).map(name => ({
+      name,
+      flats: wingMap[name],
+    }));
+
+    setLocalWings(updatedWings);
   };
 
   // Submit Step 1: Initialize reserves
@@ -538,367 +609,12 @@ export const FinancialOnboardingWizard = ({ navigation }: any) => {
           </View>
 
           <View className="space-y-4">
-            {isSingleBuilding ? (
-              // Single Building Layout directly
-              <View className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
-                <View className="flex-row justify-between items-center pb-2 border-b border-slate-50">
-                  <Text className="font-black text-slate-800 text-sm">
-                    Apartment Flats List
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleAddFlat(0)}
-                    className="flex-row items-center bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100"
-                  >
-                    <PlusCircle size={12} color="#006d3b" />
-                    <Text className="text-[#006d3b] text-xs font-bold ml-1">Add flat</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {localWings[0]?.flats.length === 0 ? (
-                  <Text className="text-slate-400 text-xs text-center py-4 italic font-semibold">
-                    No flats added yet. Click 'Add flat' above.
-                  </Text>
-                ) : (
-                  localWings[0]?.flats.map((flat, flatIdx) => (
-                    <View
-                      key={flatIdx}
-                      className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 mb-3 relative"
-                    >
-                      {/* Flat Header Row */}
-                      <View className="flex-row justify-between items-center pb-2 border-b border-slate-200/50">
-                        <Text className="text-slate-500 font-extrabold text-xs">
-                          Unit #{flatIdx + 1}
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => handleRemoveFlat(0, flatIdx)}
-                          className="p-1 rounded-full bg-rose-50 border border-rose-100 active:opacity-75"
-                        >
-                          <Trash2 size={13} color="#e11d48" />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Line 1: Flat No & Area */}
-                      <View className="flex-row space-x-3">
-                        <View className="flex-1">
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Flat No.
-                          </Text>
-                          <TextInput
-                            placeholder="101"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            value={flat.flatNumber}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'flatNumber', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Area (Sq.Ft)
-                          </Text>
-                          <TextInput
-                            placeholder="1000"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            keyboardType="numeric"
-                            value={flat.squareFootage}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'squareFootage', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                          />
-                        </View>
-                      </View>
-
-                      {/* Line 2: Flat Type Selector */}
-                      <View>
-                        <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Flat Type
-                        </Text>
-                        <View className="flex-row flex-wrap gap-1">
-                          {FLAT_TYPES.map(type => {
-                            const isSelected = flat.flatType === type;
-                            return (
-                              <TouchableOpacity
-                                key={type}
-                                onPress={() => handleUpdateFlat(0, flatIdx, 'flatType', type as any)}
-                                className={`px-2 py-1 rounded-md border ${
-                                  isSelected
-                                    ? 'bg-emerald-50 border-emerald-400'
-                                    : 'bg-white border-slate-200'
-                                }`}
-                              >
-                                <Text
-                                  className={`text-[9px] font-bold ${
-                                    isSelected ? 'text-[#006d3b]' : 'text-slate-500'
-                                  }`}
-                                >
-                                  {type}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-
-                      {/* Line 3: Resident Name & Phone */}
-                      <View className="flex-row space-x-3">
-                        <View className="flex-1" style={{ flex: 1.5 }}>
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Resident Name (Optional)
-                          </Text>
-                          <TextInput
-                            placeholder="Aarav Sharma"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            value={flat.residentName}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'residentName', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold text-xs"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Phone (Optional)
-                          </Text>
-                          <TextInput
-                            placeholder="9876543210"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            keyboardType="phone-pad"
-                            maxLength={10}
-                            value={flat.phone}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'phone', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold text-xs"
-                          />
-                        </View>
-                      </View>
-
-                      {/* Line 4: Wallet Credit & Arrears */}
-                      <View className="flex-row space-x-3">
-                        <View className="flex-1">
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Wallet Credit (₹)
-                          </Text>
-                          <TextInput
-                            placeholder="0"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            keyboardType="numeric"
-                            value={flat.advanceWalletBalance}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'advanceWalletBalance', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                            Arrears (₹)
-                          </Text>
-                          <TextInput
-                            placeholder="0"
-                            placeholderTextColor="#94a3b8"
-                            keyboardAppearance="light"
-                            keyboardType="numeric"
-                            value={flat.arrears}
-                            onChangeText={val => handleUpdateFlat(0, flatIdx, 'arrears', val)}
-                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            ) : (
-              // Multi-Wing complexes layout
-              localWings.map((wing, wingIdx) => (
-                <View
-                  key={wingIdx}
-                  className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4 mb-4"
-                >
-                  {/* Wing Header */}
-                  <View className="flex-row justify-between items-center pb-2 border-b border-slate-50">
-                    <View className="flex-row items-center flex-1 pr-4">
-                      <Layers size={16} color="#006d3b" />
-                      <TextInput
-                        placeholder="Wing Name"
-                        placeholderTextColor="#94a3b8"
-                        keyboardAppearance="light"
-                        value={wing.name}
-                        onChangeText={val => handleUpdateWingName(wingIdx, val)}
-                        className="flex-1 ml-3 text-slate-800 font-black text-sm p-0"
-                      />
-                    </View>
-                    <View className="flex-row items-center space-x-2">
-                      <TouchableOpacity
-                        onPress={() => handleAddFlat(wingIdx)}
-                        className="p-1.5 bg-emerald-50 rounded-lg border border-emerald-100"
-                      >
-                        <PlusCircle size={14} color="#006d3b" />
-                      </TouchableOpacity>
-                      {localWings.length > 1 && (
-                        <TouchableOpacity
-                          onPress={() => handleRemoveWing(wingIdx)}
-                          className="p-1.5 bg-rose-50 rounded-lg border border-rose-100 ml-1"
-                        >
-                          <Trash2 size={14} color="#e11d48" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Flats Listing */}
-                  {wing.flats.length === 0 ? (
-                    <Text className="text-slate-400 text-xs text-center py-4 italic font-semibold">
-                      No units added in this wing. Click the '+' button.
-                    </Text>
-                  ) : (
-                    wing.flats.map((flat, flatIdx) => (
-                      <View
-                        key={flatIdx}
-                        className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 mb-3 relative"
-                      >
-                        {/* Flat Header Row */}
-                        <View className="flex-row justify-between items-center pb-2 border-b border-slate-200/50">
-                          <Text className="text-slate-500 font-extrabold text-xs">
-                            Unit #{flatIdx + 1}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => handleRemoveFlat(wingIdx, flatIdx)}
-                            className="p-1 rounded-full bg-rose-50 border border-rose-100 active:opacity-75"
-                          >
-                            <Trash2 size={13} color="#e11d48" />
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Line 1: Flat No & Area */}
-                        <View className="flex-row space-x-3">
-                          <View className="flex-1">
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Flat No.
-                            </Text>
-                            <TextInput
-                              placeholder="101"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              value={flat.flatNumber}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'flatNumber', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                            />
-                          </View>
-                          <View className="flex-1">
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Area (Sq.Ft)
-                            </Text>
-                            <TextInput
-                              placeholder="1000"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              keyboardType="numeric"
-                              value={flat.squareFootage}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'squareFootage', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                            />
-                          </View>
-                        </View>
-
-                        {/* Line 2: Flat Type Selector */}
-                        <View>
-                          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                            Flat Type
-                          </Text>
-                          <View className="flex-row flex-wrap gap-1">
-                            {FLAT_TYPES.map(type => {
-                              const isSelected = flat.flatType === type;
-                              return (
-                                <TouchableOpacity
-                                  key={type}
-                                  onPress={() => handleUpdateFlat(wingIdx, flatIdx, 'flatType', type as any)}
-                                  className={`px-2 py-1 rounded-md border ${
-                                    isSelected
-                                      ? 'bg-emerald-50 border-emerald-400'
-                                      : 'bg-white border-slate-200'
-                                  }`}
-                                >
-                                  <Text
-                                    className={`text-[9px] font-bold ${
-                                      isSelected ? 'text-[#006d3b]' : 'text-slate-500'
-                                    }`}
-                                  >
-                                    {type}
-                                  </Text>
-                                </TouchableOpacity>
-                              );
-                            })}
-                          </View>
-                        </View>
-
-                        {/* Line 3: Resident Name & Phone */}
-                        <View className="flex-row space-x-3">
-                          <View className="flex-1" style={{ flex: 1.5 }}>
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Resident Name (Optional)
-                            </Text>
-                            <TextInput
-                              placeholder="Aarav Sharma"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              value={flat.residentName}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'residentName', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold text-xs"
-                            />
-                          </View>
-                          <View className="flex-1">
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Phone (Optional)
-                            </Text>
-                            <TextInput
-                              placeholder="9876543210"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              keyboardType="phone-pad"
-                              maxLength={10}
-                              value={flat.phone}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'phone', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold text-xs"
-                            />
-                          </View>
-                        </View>
-
-                        {/* Line 4: Wallet Credit & Arrears */}
-                        <View className="flex-row space-x-3">
-                          <View className="flex-1">
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Wallet Credit (₹)
-                            </Text>
-                            <TextInput
-                              placeholder="0"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              keyboardType="numeric"
-                              value={flat.advanceWalletBalance}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'advanceWalletBalance', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                            />
-                          </View>
-                          <View className="flex-1">
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                              Arrears (₹)
-                            </Text>
-                            <TextInput
-                              placeholder="0"
-                              placeholderTextColor="#94a3b8"
-                              keyboardAppearance="light"
-                              keyboardType="numeric"
-                              value={flat.arrears}
-                              onChangeText={val => handleUpdateFlat(wingIdx, flatIdx, 'arrears', val)}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-bold text-xs"
-                            />
-                          </View>
-                        </View>
-                      </View>
-                    ))
-                  )}
-                </View>
-              ))
-            )}
+            <ResidentRosterEngine
+              mode="onboarding"
+              data={rosterData}
+              structureType={structureType}
+              onDataChange={handleRosterChange}
+            />
 
             <TouchableOpacity
               onPress={handleFinalizeOnboarding}

@@ -7,11 +7,18 @@ export const useFinance = () => {
   const activeMembership = useAuthStore(state => state.activeMembership);
   const societyId = activeMembership?.society?.id;
 
-  const [summary, setSummary] = useState({
+  const [summary, setSummary] = useState<{
+    totalCollected: number;
+    totalPending: number;
+    cashBalance: number;
+    bankBalance: number;
+    transparencyEnabled?: boolean;
+  }>({
     totalCollected: 0,
     totalPending: 0,
     cashBalance: 0,
     bankBalance: 0,
+    transparencyEnabled: false,
   });
   const [loading, setLoading] = useState(false);
 

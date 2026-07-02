@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
   Modal,
+  Keyboard,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import apiClient from '../api/client';
@@ -61,6 +62,9 @@ const AuthScreen = ({ route, navigation }: any) => {
   const handleConfirmPinChangeDirect = (text: string) => {
     const numericText = text.replace(/[^0-9]/g, '').slice(0, 4);
     setConfirmPin(numericText);
+    if (numericText.length === 4) {
+      Keyboard.dismiss();
+    }
   };
 
   const handlePhoneChange = (text: string) => {
@@ -486,9 +490,9 @@ const AuthScreen = ({ route, navigation }: any) => {
     setShowProfileModal(false);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (overridePin?: string) => {
     const trimmedPhone = phone.trim();
-    const trimmedPin = pin.trim();
+    const trimmedPin = (overridePin || pin).trim();
 
     if (!trimmedPhone || !trimmedPin) {
       return Toast.show({
@@ -601,6 +605,15 @@ const AuthScreen = ({ route, navigation }: any) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoginPinChangeDirect = (text: string) => {
+    const numericText = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setPin(numericText);
+    if (numericText.length === 4) {
+      Keyboard.dismiss();
+      handleSubmit(numericText);
     }
   };
 
@@ -932,7 +945,7 @@ const AuthScreen = ({ route, navigation }: any) => {
                         keyboardAppearance="light"
                         maxLength={4}
                         value={pin}
-                        onChangeText={handlePinChangeDirect}
+                        onChangeText={handleLoginPinChangeDirect}
                         onFocus={() => setIsPinInputFocused(true)}
                         onBlur={() => setIsPinInputFocused(false)}
                         caretHidden
@@ -947,15 +960,15 @@ const AuthScreen = ({ route, navigation }: any) => {
                       Forgot PIN?
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    className="w-full bg-[#006d3b] py-3.5 rounded-xl justify-center items-center active:bg-[#00522c] mb-4 mt-2"
-                  >
-                    <Text className="text-white font-bold text-base">
-                      {loading ? 'Logging in...' : 'Login'}
-                    </Text>
-                  </TouchableOpacity>
+                  
+                  {loading && (
+                    <View className="w-full py-3.5 items-center justify-center mb-2">
+                      <Text className="text-slate-500 font-semibold text-sm">
+                        Logging in...
+                      </Text>
+                    </View>
+                  )}
+
                   <TouchableOpacity
                     onPress={() => {
                       setLoginStep('phone');
@@ -1202,7 +1215,7 @@ const AuthScreen = ({ route, navigation }: any) => {
               className={`w-full py-3.5 rounded-xl justify-center items-center ${
                 loading ? 'bg-emerald-400' : 'bg-[#006d3b]'
               }`}
-              onPress={handleSubmit}
+              onPress={() => handleSubmit()}
               disabled={loading}
             >
               <Text className="text-white font-semibold text-base">

@@ -37,7 +37,14 @@ export const useDirectory = () => {
         entry.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         entry.flatNumber?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesRole = roleFilter === 'all' || entry.role === roleFilter;
+      let matchesRole = false;
+      if (roleFilter === 'all') {
+        matchesRole = true;
+      } else if (roleFilter === 'management') {
+        matchesRole = ['admin', 'secretary', 'treasurer'].includes(entry.role);
+      } else {
+        matchesRole = entry.role === roleFilter;
+      }
 
       return matchesSearch && matchesRole;
     });
@@ -45,6 +52,7 @@ export const useDirectory = () => {
 
   return {
     directory: filteredDirectory,
+    rawDirectory,
     loading,
     searchQuery,
     setSearchQuery,

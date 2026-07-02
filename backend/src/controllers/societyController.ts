@@ -123,7 +123,7 @@ export const getSocietyProfile = async (req: Request, res: Response) => {
 // 🏛️ Update society profile details (restricted to Admin)
 export const updateSocietyProfile = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, address, govtRegistrationNo, structureType } = req.body;
+  const { name, address, govtRegistrationNo, structureType, financialTransparencyEnabled } = req.body;
 
   if (!name || !address || !govtRegistrationNo || !structureType) {
     return sendError(
@@ -155,6 +155,7 @@ export const updateSocietyProfile = async (req: Request, res: Response) => {
       address: address.trim(),
       govtRegistrationNo: govtRegistrationNo.trim(),
       structureType,
+      financialTransparencyEnabled: financialTransparencyEnabled !== undefined ? financialTransparencyEnabled : society.financialTransparencyEnabled,
     });
 
     return sendSuccess(res, 200, "Society profile updated successfully.", society);

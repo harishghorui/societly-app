@@ -531,6 +531,32 @@ before sending data to clients.
 
 ---
 
+## Financial Transparency & Balance Pool Visibility Path
+
+1. **Toggle Configuration**: Admin edits the society settings on `SocietyProfileScreen` to enable or disable the `financialTransparencyEnabled` boolean toggle (stored on the `Society` model).
+2. **Backend Protection**: During `GET /api/finance/summary`, if the requester is not an admin/treasurer, the server evaluates `financialTransparencyEnabled`. If `false`, `cashBalance` and `bankBalance` are returned as `null` to secure financial pools.
+3. **Adaptive Dashboard Render**: The mobile `DashboardHome` fetches the summary unconditionally for all roles. If `summary.transparencyEnabled` is `true`, residents see a read-only master balance pool snapshot; otherwise, the component stays completely hidden from non-admin roles.
+
+---
+
+## Resident Directory Management Filter & Wallet Isolation Path
+
+1. **Management Filter Tab**: The `DirectoryScreen` includes a 'Management' tab that filters the directory listing to show only members with `'admin'`, `'secretary'`, or `'treasurer'` roles. These members are highlighted with styled amber badges.
+2. **Wallet Linkage Gate**: To prevent inactive or non-resident members from utilizing wallet credits, both the mobile layout (wallet balance badge and wallet top-up button) and the backend topup API controller (`POST /api/finance/wallet/topup`) hide and reject wallet functionality for members lacking a linked flat (`flatId` / `flatNumber` is null).
+
+## Resident Roster Engine Integration Path
+
+1. **Modular Engine Component**: The `ResidentRosterEngine` component (in [ResidentRosterEngine.tsx](file:///home/harish/Harish/Git/societly-app/mobile/src/components/ResidentRosterEngine.tsx)) provides a unified, reusable layout for listing, filtering, and CRUD operations.
+2. **Three Operational Modes**:
+   - `'readonly'`: Renders a pure view-only roster list without configuration controls (used by standard residents).
+   - `'onboarding'`: Performs CRUD updates against a fast, local-memory array in the setup wizard.
+   - `'management'`: Connects CRUD events directly to the backend database endpoints (used by Admin/Secretary).
+3. **Sticky Filter Ribbon & Form Controls**: Aggregates unit and floor options dynamically from the dataset and provides instant filtering by Search Query, Wing, and Floor levels. If the society structure type is `'single_building'`, the Wing filter ribbon dropdown and Wing text input fields are hidden, and all added flats default to the `'Main'` wing.
+4. **Identity Update Safeguard**: Enforces backend-protected restrictions: once a user sets their login PIN and transitions to `'active'` status, their global identity parameters (`name` and `phone`) are locked. The administrator can only update structural configuration elements (e.g. flat number, wing, square footage).
+5. **Backend Mutations**: Router endpoints `POST /api/society/directory/upsert` and `DELETE /api/society/directory/:membershipId` orchestrate single-record modifications and memberships revocation.
+
+---
+
 # ⚠️ Common Agent Pitfalls to Avoid
 
 ### Backend

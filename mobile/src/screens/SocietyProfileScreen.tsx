@@ -39,6 +39,7 @@ export const SocietyProfileScreen = ({ navigation }: any) => {
   const [address, setAddress] = useState('');
   const [govtRegNo, setGovtRegNo] = useState('');
   const [structureType, setStructureType] = useState<'single_building' | 'multi_wing'>('multi_wing');
+  const [financialTransparencyEnabled, setFinancialTransparencyEnabled] = useState(false);
 
   // Confirmation Alert States
   const [alert, setAlert] = useState({
@@ -64,6 +65,7 @@ export const SocietyProfileScreen = ({ navigation }: any) => {
       setAddress(society.address || '');
       setGovtRegNo(society.govtRegistrationNo || '');
       setStructureType(society.structureType || 'multi_wing');
+      setFinancialTransparencyEnabled(society.financialTransparencyEnabled || false);
     }
   }, [society]);
 
@@ -106,6 +108,7 @@ export const SocietyProfileScreen = ({ navigation }: any) => {
         address: address.trim(),
         govtRegistrationNo: govtRegNo.trim(),
         structureType,
+        financialTransparencyEnabled,
       });
 
       Toast.show({
@@ -321,6 +324,46 @@ export const SocietyProfileScreen = ({ navigation }: any) => {
                     {structureType === 'single_building' ? 'Single Building (No Wings)' : 'Multi-Wing / Multi-Tower Complex'}
                   </Text>
                 )}
+              </View>
+
+              {/* Financial Transparency Toggle */}
+              <View className="space-y-2 border-t border-slate-50 pt-4">
+                <View className="flex-row justify-between items-center">
+                  <View className="flex-1 mr-4">
+                    <Text className="text-slate-800 font-bold text-sm">
+                      Financial Transparency
+                    </Text>
+                    <Text className="text-slate-400 text-xs mt-0.5 leading-relaxed">
+                      Enable to allow resident users to view a read-only snapshot of the society's master balance pool on their dashboard.
+                    </Text>
+                  </View>
+                  {isEditing ? (
+                    <TouchableOpacity
+                      onPress={() => setFinancialTransparencyEnabled(!financialTransparencyEnabled)}
+                      className={`w-12 h-6 rounded-full p-0.5 justify-center ${
+                        financialTransparencyEnabled ? 'bg-[#006d3b] items-end' : 'bg-slate-200 items-start'
+                      }`}
+                    >
+                      <View className="w-5 h-5 rounded-full bg-white shadow-sm" />
+                    </TouchableOpacity>
+                  ) : (
+                    <View
+                      className={`px-2.5 py-1 rounded-full border ${
+                        society?.financialTransparencyEnabled
+                          ? 'bg-emerald-50 border-emerald-100'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <Text
+                        className={`text-[10px] font-bold uppercase ${
+                          society?.financialTransparencyEnabled ? 'text-[#006d3b]' : 'text-slate-500'
+                        }`}
+                      >
+                        {society?.financialTransparencyEnabled ? 'Enabled' : 'Disabled'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
           </View>

@@ -31,6 +31,7 @@ export const useSociety = () => {
     address: string;
     govtRegistrationNo: string;
     structureType: 'single_building' | 'multi_wing';
+    financialTransparencyEnabled?: boolean;
   }) => {
     if (!societyId) return;
     setSaving(true);
